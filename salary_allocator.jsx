@@ -1,0 +1,1160 @@
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import {
+  Plus, Trash2, Edit2, Check, X, AlertCircle, Wallet, ChevronDown, ChevronRight,
+  Save, Coins, History, BarChart3, ArrowLeft, TrendingDown, TrendingUp, Minus
+} from 'lucide-react';
+
+const STORAGE_KEY = 'salary_allocator_v3';
+
+const colorPalette = [
+  '#10b981', '#3b82f6', '#f59e0b', '#ec4899',
+  '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16',
+  '#f97316', '#6366f1', '#14b8a6', '#a855f7',
+];
+
+const defaultData = {
+  salary: 300000,
+  bonus: 500000,
+  mode: 'normal',
+  remainderAbsorberId: 2,
+  bonusRemainderAbsorberId: 101,
+  normalCategories: [
+    { id: 1, name: '生活費', percentage: 40, color: '#10b981', subItems: [] },
+    {
+      id: 2,
+      name: '自己投資',
+      percentage: 30,
+      color: '#3b82f6',
+      subItems: [
+        { id: 21, name: '書籍', percentage: 20 },
+        { id: 22, name: '講座', percentage: 50 },
+        { id: 23, name: 'ジム', percentage: 30 },
+      ],
+    },
+    { id: 3, name: '貯金', percentage: 10, color: '#f59e0b', subItems: [] },
+    { id: 4, name: '自由＋交際', percentage: 20, color: '#ec4899', subItems: [] },
+  ],
+  bonusCategories: [
+    { id: 101, name: '自己投資', percentage: 60, color: '#3b82f6', subItems: [] },
+    { id: 102, name: '彼女との交際費', percentage: 40, color: '#ec4899', subItems: [] },
+  ],
+  history: [],
+};
+
+const formatYen = (amount) => `¥${Math.floor(amount).toLocaleString('ja-JP')}`;
+
+// 端数吸収後の配分額計算
+function computeAllocations(categories, baseAmount, absorberId) {
+  const total = categories.reduce((s, c) => s + Number(c.percentage), 0);
+  const flooredAmounts = categories.map((cat) => Math.floor((baseAmount * cat.percentage) / 100));
+  const flooredTotal = flooredAmounts.reduce((s, a) => s + a, 0);
+  const targetTotal = Math.floor((baseAmount * Math.min(total, 100)) / 100);
+  const remainder = targetTotal - flooredTotal;
+  const idx = categories.findIndex((c) => c.id === absorberId);
+  const result = flooredAmounts.slice();
+  if (idx >= 0 && remainder !== 0) result[idx] += remainder;
+  else if (remainder !== 0 && categories.length > 0) result[0] += remainder;
+  return result;
+}
+
+// =========================================================================
+// メインコンポーネント
+// =========================================================================
+export default function SalaryAllocator() {
+  const [data, setData] = useState(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) return { ...defaultData, ...JSON.parse(stored) };
+    } catch (e) {}
+    return defaultData;
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+  }, [data]);
+
+  const [tab, setTab] = useState('allocate'); // 'allocate' | 'history' | 'yearly'
+  const [editingRecord, setEditingRecord] = useState(null); // 履歴編集中のレコード
+
+  return (
+    <div className="min-h-screen bg-stone-50" style={{ fontFamily: '"Hiragino Sans", "Noto Sans JP", sans-serif' }}>
+      <div className="max-w-3xl mx-auto p-4 md:p-8 pb-24">
+        <header className="mb-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-stone-900 rounded-lg">
+              <Wallet className="w-6 h-6 text-stone-50" />
+            </div>
+            <h1 className="text-2xl md:text-3xl font-bold text-stone-900 tracking-tight">給与配分</h1>
+          </div>
+          <p className="text-stone-500 text-sm">
+            {tab === 'allocate' && '給与を入力して、各項目への配分を管理'}
+            {tab === 'history' && '月ごとの記録と実績'}
+            {tab === 'yearly' && '年単位の集計'}
+          </p>
+        </header>
+
+        {editingRecord ? (
+          <RecordEditor
+            record={editingRecord}
+            onClose={() => setEditingRecord(null)}
+            onSave={(updated) => {
+              setData((d) => ({
+                ...d,
+                history: d.history.map((r) => (r.id === updated.id ? updated : r)),
+              }));
+              setEditingRecord(null);
+            }}
+            onDelete={(id) => {
+              setData((d) => ({ ...d, history: d.history.filter((r) => r.id !== id) }));
+              setEditingRecord(null);
+            }}
+          />
+        ) : (
+          <>
+            {tab === 'allocate' && <AllocateView data={data} setData={setData} />}
+            {tab === 'history' && (
+              <HistoryView
+                history={data.history}
+                onEdit={(record) => setEditingRecord(record)}
+              />
+            )}
+            {tab === 'yearly' && <YearlySummary history={data.history} />}
+          </>
+        )}
+      </div>
+
+      {/* タブバー（下部固定） */}
+      {!editingRecord && (
+        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 shadow-lg">
+          <div className="max-w-3xl mx-auto flex">
+            <TabButton active={tab === 'allocate'} onClick={() => setTab('allocate')} icon={Wallet} label="配分" />
+            <TabButton active={tab === 'history'} onClick={() => setTab('history')} icon={History} label="履歴" />
+            <TabButton active={tab === 'yearly'} onClick={() => setTab('yearly')} icon={BarChart3} label="年集計" />
+          </div>
+        </nav>
+      )}
+    </div>
+  );
+}
+
+function TabButton({ active, onClick, icon: Icon, label }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 py-3 flex flex-col items-center gap-1 transition-colors ${
+        active ? 'text-stone-900' : 'text-stone-400 hover:text-stone-700'
+      }`}
+    >
+      <Icon className={`w-5 h-5 ${active ? 'stroke-2' : ''}`} />
+      <span className={`text-xs ${active ? 'font-semibold' : 'font-medium'}`}>{label}</span>
+    </button>
+  );
+}
+
+// =========================================================================
+// 配分タブ
+// =========================================================================
+function AllocateView({ data, setData }) {
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', percentage: 0, color: '' });
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newCategory, setNewCategory] = useState({ name: '', percentage: '' });
+  const [expandedIds, setExpandedIds] = useState([2]);
+  const [editingSubKey, setEditingSubKey] = useState(null);
+  const [subEditForm, setSubEditForm] = useState({ name: '', percentage: 0 });
+  const [showSubAddForm, setShowSubAddForm] = useState(null);
+  const [newSubItem, setNewSubItem] = useState({ name: '', percentage: '' });
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const isBonus = data.mode === 'bonus';
+  const categories = isBonus ? data.bonusCategories : data.normalCategories;
+  const baseAmount = isBonus ? data.bonus : data.salary;
+  const categoriesKey = isBonus ? 'bonusCategories' : 'normalCategories';
+  const absorberId = isBonus ? data.bonusRemainderAbsorberId : data.remainderAbsorberId;
+  const absorberKey = isBonus ? 'bonusRemainderAbsorberId' : 'remainderAbsorberId';
+
+  const totalPercentage = useMemo(
+    () => categories.reduce((sum, cat) => sum + Number(cat.percentage), 0),
+    [categories]
+  );
+
+  const allocations = useMemo(
+    () => computeAllocations(categories, baseAmount, absorberId),
+    [categories, baseAmount, absorberId]
+  );
+
+  const updateCategories = (updater) => {
+    setData((d) => ({
+      ...d,
+      [categoriesKey]: typeof updater === 'function' ? updater(d[categoriesKey]) : updater,
+    }));
+  };
+
+  const setSalaryValue = (val) => {
+    if (isBonus) setData((d) => ({ ...d, bonus: val }));
+    else setData((d) => ({ ...d, salary: val }));
+  };
+
+  const handleSalaryChange = (e) => {
+    const raw = e.target.value;
+    if (raw === '') { setSalaryValue(0); return; }
+    const num = Number(raw);
+    if (isNaN(num) || num < 0) return;
+    setSalaryValue(num);
+  };
+
+  // 編集自動保存
+  const editingIdRef = useRef(editingId);
+  const editFormRef = useRef(editForm);
+  const editingSubKeyRef = useRef(editingSubKey);
+  const subEditFormRef = useRef(subEditForm);
+  useEffect(() => { editingIdRef.current = editingId; }, [editingId]);
+  useEffect(() => { editFormRef.current = editForm; }, [editForm]);
+  useEffect(() => { editingSubKeyRef.current = editingSubKey; }, [editingSubKey]);
+  useEffect(() => { subEditFormRef.current = subEditForm; }, [subEditForm]);
+
+  const saveCurrentEdits = () => {
+    const curId = editingIdRef.current;
+    const curForm = editFormRef.current;
+    const curSubKey = editingSubKeyRef.current;
+    const curSubForm = subEditFormRef.current;
+    if (curId !== null && curForm.name.trim()) {
+      updateCategories((cats) =>
+        cats.map((cat) =>
+          cat.id === curId
+            ? { ...cat, name: curForm.name.trim(), percentage: Number(curForm.percentage) || 0, color: curForm.color || cat.color }
+            : cat
+        )
+      );
+    }
+    if (curSubKey !== null && curSubForm.name.trim()) {
+      const [parentId, subId] = curSubKey.split('-').map(Number);
+      updateCategories((cats) =>
+        cats.map((cat) =>
+          cat.id === parentId
+            ? {
+                ...cat,
+                subItems: cat.subItems.map((s) =>
+                  s.id === subId
+                    ? { ...s, name: curSubForm.name.trim(), percentage: Number(curSubForm.percentage) || 0 }
+                    : s
+                ),
+              }
+            : cat
+        )
+      );
+    }
+  };
+
+  const startEdit = (category) => {
+    if (editingId !== null && editingId !== category.id) saveCurrentEdits();
+    if (editingSubKey !== null) saveCurrentEdits();
+    setEditingSubKey(null);
+    setEditingId(category.id);
+    setEditForm({ name: category.name, percentage: category.percentage, color: category.color });
+  };
+
+  const saveEdit = (id) => {
+    if (!editForm.name.trim()) return;
+    updateCategories((cats) =>
+      cats.map((cat) =>
+        cat.id === id
+          ? { ...cat, name: editForm.name.trim(), percentage: Number(editForm.percentage), color: editForm.color }
+          : cat
+      )
+    );
+    setEditingId(null);
+  };
+
+  const cancelEdit = () => { setEditingId(null); setEditForm({ name: '', percentage: 0, color: '' }); };
+
+  const requestDeleteCategory = (cat) => setDeleteTarget({ type: 'category', id: cat.id, name: cat.name });
+  const requestDeleteSub = (parentId, sub) => setDeleteTarget({ type: 'sub', id: sub.id, name: sub.name, parentId });
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.type === 'category') {
+      updateCategories((cats) => cats.filter((cat) => cat.id !== deleteTarget.id));
+      if (deleteTarget.id === absorberId) {
+        const remaining = categories.filter((c) => c.id !== deleteTarget.id);
+        if (remaining.length > 0) setData((d) => ({ ...d, [absorberKey]: remaining[0].id }));
+      }
+    } else {
+      updateCategories((cats) =>
+        cats.map((cat) =>
+          cat.id === deleteTarget.parentId
+            ? { ...cat, subItems: cat.subItems.filter((s) => s.id !== deleteTarget.id) }
+            : cat
+        )
+      );
+    }
+    setDeleteTarget(null);
+  };
+
+  const addCategory = () => {
+    const pct = Number(newCategory.percentage);
+    if (!newCategory.name.trim() || pct <= 0) return;
+    const usedColors = categories.map((c) => c.color);
+    const availableColor =
+      colorPalette.find((c) => !usedColors.includes(c)) ||
+      colorPalette[categories.length % colorPalette.length];
+    updateCategories((cats) => [
+      ...cats,
+      { id: Date.now(), name: newCategory.name.trim(), percentage: pct, color: availableColor, subItems: [] },
+    ]);
+    setNewCategory({ name: '', percentage: '' });
+    setShowAddForm(false);
+  };
+
+  const toggleExpand = (id) => setExpandedIds((ids) => (ids.includes(id) ? ids.filter((i) => i !== id) : [...ids, id]));
+
+  const startSubEdit = (categoryId, sub) => {
+    if (editingId !== null) saveCurrentEdits();
+    if (editingSubKey !== null && editingSubKey !== `${categoryId}-${sub.id}`) saveCurrentEdits();
+    setEditingId(null);
+    setEditingSubKey(`${categoryId}-${sub.id}`);
+    setSubEditForm({ name: sub.name, percentage: sub.percentage });
+  };
+
+  const saveSubEdit = (categoryId, subId) => {
+    if (!subEditForm.name.trim()) return;
+    updateCategories((cats) =>
+      cats.map((cat) =>
+        cat.id === categoryId
+          ? {
+              ...cat,
+              subItems: cat.subItems.map((s) =>
+                s.id === subId
+                  ? { ...s, name: subEditForm.name.trim(), percentage: Number(subEditForm.percentage) }
+                  : s
+              ),
+            }
+          : cat
+      )
+    );
+    setEditingSubKey(null);
+  };
+
+  const addSubItem = (categoryId) => {
+    const pct = Number(newSubItem.percentage);
+    if (!newSubItem.name.trim() || pct < 0) return;
+    updateCategories((cats) =>
+      cats.map((cat) =>
+        cat.id === categoryId
+          ? {
+              ...cat,
+              subItems: [...cat.subItems, { id: Date.now(), name: newSubItem.name.trim(), percentage: pct }],
+            }
+          : cat
+      )
+    );
+    setNewSubItem({ name: '', percentage: '' });
+    setShowSubAddForm(null);
+  };
+
+  const confirmMonth = () => {
+    saveCurrentEdits();
+    setEditingId(null);
+    setEditingSubKey(null);
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const allocs = computeAllocations(categories, baseAmount, absorberId);
+    const record = {
+      id: Date.now(),
+      yearMonth: ym,
+      type: data.mode,
+      amount: baseAmount,
+      categories: JSON.parse(JSON.stringify(categories)),
+      allocations: allocs,
+      actuals: {}, // { categoryId: { total: number, subItems: { subId: number } } }
+      createdAt: now.toISOString(),
+    };
+    setData((d) => ({ ...d, history: [...d.history, record] }));
+    setShowConfirmModal(false);
+  };
+
+  const isOver = totalPercentage > 100;
+  const isUnder = totalPercentage < 100;
+  const remaining = 100 - totalPercentage;
+
+  return (
+    <>
+      <div className="bg-white rounded-2xl p-1 mb-4 shadow-sm border border-stone-200 flex">
+        <button
+          onClick={() => { saveCurrentEdits(); setEditingId(null); setEditingSubKey(null); setData((d) => ({ ...d, mode: 'normal' })); }}
+          className={`flex-1 py-2 rounded-xl font-medium text-sm transition-colors ${!isBonus ? 'bg-stone-900 text-white' : 'text-stone-500 hover:text-stone-900'}`}
+        >
+          通常給与
+        </button>
+        <button
+          onClick={() => { saveCurrentEdits(); setEditingId(null); setEditingSubKey(null); setData((d) => ({ ...d, mode: 'bonus' })); }}
+          className={`flex-1 py-2 rounded-xl font-medium text-sm transition-colors ${isBonus ? 'bg-stone-900 text-white' : 'text-stone-500 hover:text-stone-900'}`}
+        >
+          ボーナス
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl p-6 mb-4 shadow-sm border border-stone-200">
+        <label className="block text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2">
+          {isBonus ? 'ボーナス額（手取り）' : '月の給与（手取り）'}
+        </label>
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl text-stone-400">¥</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={baseAmount === 0 ? '' : String(baseAmount)}
+            onChange={handleSalaryChange}
+            className="flex-1 text-4xl md:text-5xl font-bold text-stone-900 bg-transparent outline-none w-full"
+            placeholder="0"
+          />
+        </div>
+      </div>
+
+      {(isOver || isUnder) && (
+        <div className={`flex items-start gap-2 p-3 rounded-xl mb-4 ${isOver ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            {isOver ? (
+              <>合計が <strong>{totalPercentage}%</strong> です。100%を超えています（+{totalPercentage - 100}%）</>
+            ) : (
+              <>合計が <strong>{totalPercentage}%</strong> です。残り <strong>{remaining}%</strong> 未配分</>
+            )}
+          </div>
+        </div>
+      )}
+
+      {categories.length > 0 && (
+        <div className="bg-white rounded-2xl p-3 mb-4 shadow-sm border border-stone-200 flex items-center gap-2">
+          <Coins className="w-4 h-4 text-stone-400 flex-shrink-0" />
+          <span className="text-xs text-stone-500 flex-shrink-0">端数の吸収先</span>
+          <select
+            value={absorberId}
+            onChange={(e) => setData((d) => ({ ...d, [absorberKey]: Number(e.target.value) }))}
+            className="flex-1 text-sm font-medium text-stone-900 bg-transparent outline-none cursor-pointer"
+          >
+            {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+          </select>
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm border border-stone-200">
+        <div className="flex h-8 rounded-lg overflow-hidden bg-stone-100">
+          {categories.map((cat) => (
+            <div
+              key={cat.id}
+              style={{
+                width: `${(cat.percentage / Math.max(totalPercentage, 100)) * 100}%`,
+                backgroundColor: cat.color,
+              }}
+              className="transition-all duration-300"
+              title={`${cat.name}: ${cat.percentage}%`}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2 mb-4">
+        {categories.map((cat, idx) => {
+          const amount = allocations[idx];
+          const isEditing = editingId === cat.id;
+          const hasSubSupport = !isBonus;
+          const isExpanded = expandedIds.includes(cat.id);
+          const subTotal = cat.subItems?.reduce((s, x) => s + Number(x.percentage), 0) || 0;
+          const subInvalid = cat.subItems?.length > 0 && subTotal !== 100;
+          const isAbsorber = cat.id === absorberId;
+
+          return (
+            <div key={cat.id} className="bg-white rounded-2xl shadow-sm border border-stone-200 hover:border-stone-300 transition-colors overflow-hidden">
+              {isEditing ? (
+                <div className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-3 h-12 rounded-full flex-shrink-0" style={{ backgroundColor: editForm.color }} />
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={editForm.name}
+                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                        className="px-3 py-2 border border-stone-300 rounded-lg outline-none focus:border-stone-900"
+                        placeholder="項目名"
+                      />
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          value={editForm.percentage}
+                          onChange={(e) => setEditForm({ ...editForm, percentage: e.target.value })}
+                          className="w-full px-3 py-2 border border-stone-300 rounded-lg outline-none focus:border-stone-900"
+                          min="0" max="100"
+                        />
+                        <span className="text-stone-500">%</span>
+                      </div>
+                    </div>
+                    <button onClick={() => saveEdit(cat.id)} className="p-2 bg-stone-900 text-white rounded-lg hover:bg-stone-700"><Check className="w-4 h-4" /></button>
+                    <button onClick={cancelEdit} className="p-2 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200"><X className="w-4 h-4" /></button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 pl-5">
+                    {colorPalette.map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => setEditForm({ ...editForm, color: c })}
+                        className={`w-7 h-7 rounded-full transition-transform ${editForm.color === c ? 'ring-2 ring-offset-2 ring-stone-900 scale-110' : 'hover:scale-110'}`}
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 flex items-center gap-3">
+                  {hasSubSupport ? (
+                    <button onClick={() => toggleExpand(cat.id)} className="flex-shrink-0 p-1 -ml-1 text-stone-400 hover:text-stone-900">
+                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </button>
+                  ) : <div className="w-6" />}
+                  <div className="w-3 h-12 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline justify-between gap-2 mb-1">
+                      <h3 className="font-semibold text-stone-900 truncate flex items-center gap-2">
+                        <span className="truncate">{cat.name}</span>
+                        {isAbsorber && <Coins className="w-3 h-3 text-stone-400 flex-shrink-0" />}
+                        {hasSubSupport && cat.subItems?.length > 0 && (
+                          <span className={`text-xs font-normal flex-shrink-0 ${subInvalid ? 'text-amber-600' : 'text-stone-400'}`}>
+                            {cat.subItems.length}項目{subInvalid && ` ・${subTotal}%`}
+                          </span>
+                        )}
+                      </h3>
+                      <span className="text-sm font-medium text-stone-500 flex-shrink-0">{cat.percentage}%</span>
+                    </div>
+                    <p className="text-xl font-bold text-stone-900 tabular-nums">{formatYen(amount)}</p>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    <button onClick={() => startEdit(cat)} className="p-2 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg"><Edit2 className="w-4 h-4" /></button>
+                    <button onClick={() => requestDeleteCategory(cat)} className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                </div>
+              )}
+
+              {hasSubSupport && isExpanded && !isEditing && (
+                <div className="border-t border-stone-100 bg-stone-50/50 p-3 pl-12 space-y-2">
+                  {cat.subItems?.length > 0 && (
+                    <div className={`text-xs mb-2 flex items-center gap-1 ${subInvalid ? 'text-amber-600' : 'text-stone-400'}`}>
+                      {subInvalid && <AlertCircle className="w-3 h-3" />}
+                      サブ項目内の配分: 合計 {subTotal}%{subInvalid && `（100%にしてください）`}
+                    </div>
+                  )}
+                  {cat.subItems?.map((sub) => {
+                    const subKey = `${cat.id}-${sub.id}`;
+                    const isSubEditing = editingSubKey === subKey;
+                    const subAmount = (amount * sub.percentage) / 100;
+                    return (
+                      <div key={sub.id} className="bg-white rounded-lg p-3 border border-stone-200">
+                        {isSubEditing ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 grid grid-cols-2 gap-2">
+                              <input
+                                type="text" value={subEditForm.name}
+                                onChange={(e) => setSubEditForm({ ...subEditForm, name: e.target.value })}
+                                className="px-2 py-1 border border-stone-300 rounded text-sm outline-none focus:border-stone-900"
+                              />
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number" value={subEditForm.percentage}
+                                  onChange={(e) => setSubEditForm({ ...subEditForm, percentage: e.target.value })}
+                                  className="w-full px-2 py-1 border border-stone-300 rounded text-sm outline-none focus:border-stone-900"
+                                  min="0" max="100"
+                                />
+                                <span className="text-stone-500 text-sm">%</span>
+                              </div>
+                            </div>
+                            <button onClick={() => saveSubEdit(cat.id, sub.id)} className="p-1.5 bg-stone-900 text-white rounded"><Check className="w-3 h-3" /></button>
+                            <button onClick={() => setEditingSubKey(null)} className="p-1.5 bg-stone-100 text-stone-700 rounded"><X className="w-3 h-3" /></button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-baseline justify-between gap-2">
+                                <span className="text-sm font-medium text-stone-700 truncate">{sub.name}</span>
+                                <span className="text-xs text-stone-400 flex-shrink-0">{sub.percentage}%</span>
+                              </div>
+                              <p className="text-sm font-semibold text-stone-900 tabular-nums">{formatYen(subAmount)}</p>
+                            </div>
+                            <button onClick={() => startSubEdit(cat.id, sub)} className="p-1.5 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded"><Edit2 className="w-3 h-3" /></button>
+                            <button onClick={() => requestDeleteSub(cat.id, sub)} className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-3 h-3" /></button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {showSubAddForm === cat.id ? (
+                    <div className="bg-white rounded-lg p-3 border-2 border-stone-900">
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <input
+                          type="text" value={newSubItem.name}
+                          onChange={(e) => setNewSubItem({ ...newSubItem, name: e.target.value })}
+                          className="px-2 py-1 border border-stone-300 rounded text-sm outline-none focus:border-stone-900"
+                          placeholder="項目名" autoFocus
+                        />
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number" value={newSubItem.percentage}
+                            onChange={(e) => setNewSubItem({ ...newSubItem, percentage: e.target.value })}
+                            className="w-full px-2 py-1 border border-stone-300 rounded text-sm outline-none focus:border-stone-900"
+                            placeholder="0" min="0" max="100"
+                          />
+                          <span className="text-stone-500 text-sm">%</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => addSubItem(cat.id)} className="flex-1 py-1.5 bg-stone-900 text-white rounded text-sm font-medium">追加</button>
+                        <button onClick={() => { setShowSubAddForm(null); setNewSubItem({ name: '', percentage: '' }); }} className="px-3 py-1.5 bg-stone-100 text-stone-700 rounded text-sm font-medium">キャンセル</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowSubAddForm(cat.id)}
+                      className="w-full py-2 border border-dashed border-stone-300 rounded-lg text-stone-500 hover:border-stone-900 hover:text-stone-900 transition-colors flex items-center justify-center gap-1 text-sm"
+                    >
+                      <Plus className="w-3 h-3" /><span>サブ項目を追加</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {showAddForm ? (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border-2 border-stone-900 mb-4">
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <input
+              type="text" value={newCategory.name}
+              onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
+              className="px-3 py-2 border border-stone-300 rounded-lg outline-none focus:border-stone-900"
+              placeholder="項目名（例：旅行）" autoFocus
+            />
+            <div className="flex items-center gap-1">
+              <input
+                type="number" value={newCategory.percentage}
+                onChange={(e) => setNewCategory({ ...newCategory, percentage: e.target.value })}
+                className="w-full px-3 py-2 border border-stone-300 rounded-lg outline-none focus:border-stone-900"
+                placeholder="0" min="0" max="100"
+              />
+              <span className="text-stone-500">%</span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={addCategory} className="flex-1 py-2 bg-stone-900 text-white rounded-lg font-medium hover:bg-stone-700">追加</button>
+            <button onClick={() => { setShowAddForm(false); setNewCategory({ name: '', percentage: '' }); }} className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium hover:bg-stone-200">キャンセル</button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="w-full py-3 border-2 border-dashed border-stone-300 rounded-2xl text-stone-500 hover:border-stone-900 hover:text-stone-900 transition-colors flex items-center justify-center gap-2 mb-4"
+        >
+          <Plus className="w-4 h-4" /><span className="font-medium">項目を追加</span>
+        </button>
+      )}
+
+      <div className="bg-stone-900 text-stone-50 rounded-2xl p-5 mb-4">
+        <div className="flex justify-between items-baseline mb-2">
+          <span className="text-stone-400 text-sm">配分合計</span>
+          <span className={`font-bold ${isOver ? 'text-red-400' : 'text-stone-50'}`}>{totalPercentage}%</span>
+        </div>
+        <div className="flex justify-between items-baseline pt-3 border-t border-stone-700">
+          <span className="text-stone-400 text-sm">配分される金額</span>
+          <span className="text-2xl font-bold tabular-nums">{formatYen(allocations.reduce((s, a) => s + a, 0))}</span>
+        </div>
+      </div>
+
+      <button
+        onClick={() => setShowConfirmModal(true)}
+        disabled={baseAmount <= 0 || isOver}
+        className="w-full py-3 bg-stone-900 text-white rounded-2xl font-medium hover:bg-stone-700 disabled:bg-stone-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      >
+        <Save className="w-4 h-4" />
+        {isBonus ? 'ボーナス配分を記録' : '今月の配分を確定して記録'}
+      </button>
+
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-stone-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <h2 className="text-lg font-bold text-stone-900 mb-2">記録しますか？</h2>
+            <p className="text-sm text-stone-500 mb-4">
+              {isBonus ? 'ボーナス' : '今月分'}の配分を履歴に保存します。<br />
+              金額: <strong className="text-stone-900">{formatYen(baseAmount)}</strong>
+            </p>
+            <div className="flex gap-2">
+              <button onClick={confirmMonth} className="flex-1 py-2 bg-stone-900 text-white rounded-lg font-medium">記録する</button>
+              <button onClick={() => setShowConfirmModal(false)} className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium">キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-stone-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <h2 className="text-lg font-bold text-stone-900 mb-2">削除しますか？</h2>
+            <p className="text-sm text-stone-500 mb-4">
+              <strong className="text-stone-900">「{deleteTarget.name}」</strong>を削除します。
+              {deleteTarget.type === 'category' && (<><br /><span className="text-xs">サブ項目もすべて削除されます。</span></>)}
+            </p>
+            <div className="flex gap-2">
+              <button onClick={confirmDelete} className="flex-1 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700">削除する</button>
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium">キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// =========================================================================
+// 履歴タブ
+// =========================================================================
+function HistoryView({ history, onEdit }) {
+  if (history.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-stone-200">
+        <History className="w-12 h-12 text-stone-300 mx-auto mb-3" />
+        <p className="text-stone-500 mb-1">まだ記録がありません</p>
+        <p className="text-xs text-stone-400">配分タブで「記録」を押すと履歴が残ります</p>
+      </div>
+    );
+  }
+
+  // 月の降順（新しい順）
+  const sorted = [...history].sort((a, b) => b.yearMonth.localeCompare(a.yearMonth) || b.createdAt.localeCompare(a.createdAt));
+
+  return (
+    <div className="space-y-2">
+      {sorted.map((record) => {
+        const actualTotal = Object.values(record.actuals || {}).reduce((s, v) => s + (Number(v.total) || 0), 0);
+        const hasActuals = actualTotal > 0;
+        const diff = record.amount - actualTotal;
+
+        return (
+          <button
+            key={record.id}
+            onClick={() => onEdit(record)}
+            className="w-full bg-white rounded-2xl p-4 shadow-sm border border-stone-200 hover:border-stone-400 transition-colors text-left"
+          >
+            <div className="flex items-baseline justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-stone-900">{record.yearMonth}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${record.type === 'bonus' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-600'}`}>
+                  {record.type === 'bonus' ? 'ボーナス' : '通常'}
+                </span>
+              </div>
+              <span className="text-lg font-bold text-stone-900 tabular-nums">{formatYen(record.amount)}</span>
+            </div>
+
+            <div className="flex h-2 rounded-full overflow-hidden bg-stone-100 mb-2">
+              {record.categories.map((cat) => {
+                const totalPct = record.categories.reduce((s, c) => s + Number(c.percentage), 0);
+                return (
+                  <div
+                    key={cat.id}
+                    style={{ width: `${(cat.percentage / Math.max(totalPct, 100)) * 100}%`, backgroundColor: cat.color }}
+                  />
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              {hasActuals ? (
+                <>
+                  <span className="text-stone-500">実績: <span className="font-semibold tabular-nums">{formatYen(actualTotal)}</span></span>
+                  <span className={`font-semibold tabular-nums ${diff < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {diff < 0 ? `-${formatYen(-diff)}` : `+${formatYen(diff)}`}
+                  </span>
+                </>
+              ) : (
+                <span className="text-stone-400">実績未入力 ・タップで入力</span>
+              )}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// =========================================================================
+// 履歴編集（実績入力）
+// =========================================================================
+function RecordEditor({ record, onClose, onSave, onDelete }) {
+  const [actuals, setActuals] = useState(() => JSON.parse(JSON.stringify(record.actuals || {})));
+  const [amount, setAmount] = useState(record.amount);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const getActual = (catId) => actuals[catId] || { total: 0, subItems: {} };
+  const setCategoryActual = (catId, total) => {
+    setActuals((a) => ({ ...a, [catId]: { ...getActual(catId), total: Number(total) || 0 } }));
+  };
+  const setSubActual = (catId, subId, val) => {
+    setActuals((a) => {
+      const cur = a[catId] || { total: 0, subItems: {} };
+      const newSubItems = { ...cur.subItems, [subId]: Number(val) || 0 };
+      const newTotal = Object.values(newSubItems).reduce((s, v) => s + (Number(v) || 0), 0);
+      return { ...a, [catId]: { total: newTotal, subItems: newSubItems } };
+    });
+  };
+
+  const handleAmountChange = (e) => {
+    const raw = e.target.value;
+    if (raw === '') { setAmount(0); return; }
+    const num = Number(raw);
+    if (isNaN(num) || num < 0) return;
+    setAmount(num);
+  };
+
+  const recomputedAllocations = useMemo(() => {
+    // 給与額が変わったら配分も再計算
+    if (amount !== record.amount) {
+      return computeAllocations(record.categories, amount, record.categories[0]?.id);
+    }
+    return record.allocations;
+  }, [amount, record]);
+
+  const totalActual = Object.values(actuals).reduce((s, v) => s + (Number(v.total) || 0), 0);
+  const diff = amount - totalActual;
+
+  return (
+    <>
+      <div className="flex items-center gap-2 mb-4">
+        <button onClick={onClose} className="p-2 -ml-2 text-stone-500 hover:text-stone-900">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-stone-900">{record.yearMonth}</h2>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${record.type === 'bonus' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-600'}`}>
+              {record.type === 'bonus' ? 'ボーナス' : '通常'}
+            </span>
+          </div>
+          <p className="text-xs text-stone-500">実績を入力（配分も編集可）</p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-stone-200">
+        <label className="block text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2">給与額（手取り）</label>
+        <div className="flex items-baseline gap-2">
+          <span className="text-xl text-stone-400">¥</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={amount === 0 ? '' : String(amount)}
+            onChange={handleAmountChange}
+            className="flex-1 text-3xl font-bold text-stone-900 bg-transparent outline-none w-full"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2 mb-4">
+        {record.categories.map((cat, idx) => {
+          const allocated = recomputedAllocations[idx];
+          const actual = getActual(cat.id);
+          const catDiff = allocated - actual.total;
+          const isOver = catDiff < 0 && actual.total > 0;
+          const hasSubs = cat.subItems && cat.subItems.length > 0;
+
+          return (
+            <div key={cat.id} className="bg-white rounded-2xl p-4 shadow-sm border border-stone-200">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-3 h-12 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-stone-900 truncate">{cat.name}</h3>
+                  <p className="text-xs text-stone-500">配分: <span className="font-medium tabular-nums">{formatYen(allocated)}</span></p>
+                </div>
+                {actual.total > 0 && (
+                  <div className={`flex items-center gap-1 text-sm font-semibold ${isOver ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {isOver ? <TrendingDown className="w-3 h-3" /> : catDiff > 0 ? <TrendingUp className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                    <span className="tabular-nums">{catDiff < 0 ? `-${formatYen(-catDiff)}` : `+${formatYen(catDiff)}`}</span>
+                  </div>
+                )}
+              </div>
+
+              {hasSubs ? (
+                <div className="space-y-2 pl-5">
+                  {cat.subItems.map((sub) => {
+                    const subAllocated = (allocated * sub.percentage) / 100;
+                    const subActual = actual.subItems?.[sub.id] || 0;
+                    return (
+                      <div key={sub.id} className="bg-stone-50 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-stone-700">{sub.name}</span>
+                          <span className="text-xs text-stone-400">配分 {formatYen(subAllocated)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-stone-400">実績</span>
+                          <span className="text-sm text-stone-400">¥</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={subActual === 0 ? '' : String(subActual)}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === '') { setSubActual(cat.id, sub.id, 0); return; }
+                              const num = Number(raw);
+                              if (isNaN(num) || num < 0) return;
+                              setSubActual(cat.id, sub.id, num);
+                            }}
+                            className="flex-1 text-base font-semibold text-stone-900 bg-white border border-stone-300 rounded px-2 py-1 outline-none focus:border-stone-900 tabular-nums"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <p className="text-xs text-stone-400 pl-1">合計: <span className="font-semibold tabular-nums">{formatYen(actual.total)}</span></p>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 pl-5">
+                  <span className="text-sm text-stone-400">実績</span>
+                  <span className="text-sm text-stone-400">¥</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={actual.total === 0 ? '' : String(actual.total)}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === '') { setCategoryActual(cat.id, 0); return; }
+                      const num = Number(raw);
+                      if (isNaN(num) || num < 0) return;
+                      setCategoryActual(cat.id, num);
+                    }}
+                    className="flex-1 text-base font-semibold text-stone-900 bg-stone-50 border border-stone-300 rounded px-2 py-1.5 outline-none focus:border-stone-900 tabular-nums"
+                    placeholder="0"
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="bg-stone-900 text-stone-50 rounded-2xl p-5 mb-4">
+        <div className="flex justify-between items-baseline mb-2">
+          <span className="text-stone-400 text-sm">給与</span>
+          <span className="font-bold tabular-nums">{formatYen(amount)}</span>
+        </div>
+        <div className="flex justify-between items-baseline mb-2">
+          <span className="text-stone-400 text-sm">実績合計</span>
+          <span className="font-bold tabular-nums">{formatYen(totalActual)}</span>
+        </div>
+        <div className="flex justify-between items-baseline pt-3 border-t border-stone-700">
+          <span className="text-stone-400 text-sm">差額</span>
+          <span className={`text-xl font-bold tabular-nums ${diff < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+            {diff < 0 ? `-${formatYen(-diff)}` : `+${formatYen(diff)}`}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex gap-2 mb-3">
+        <button
+          onClick={() => onSave({ ...record, amount, actuals })}
+          className="flex-1 py-3 bg-stone-900 text-white rounded-2xl font-medium hover:bg-stone-700"
+        >
+          保存
+        </button>
+        <button
+          onClick={onClose}
+          className="px-6 py-3 bg-stone-100 text-stone-700 rounded-2xl font-medium hover:bg-stone-200"
+        >
+          キャンセル
+        </button>
+      </div>
+
+      <button
+        onClick={() => setShowDeleteConfirm(true)}
+        className="w-full py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg flex items-center justify-center gap-1"
+      >
+        <Trash2 className="w-3 h-3" /> この記録を削除
+      </button>
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-stone-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <h2 className="text-lg font-bold text-stone-900 mb-2">記録を削除しますか？</h2>
+            <p className="text-sm text-stone-500 mb-4"><strong className="text-stone-900">{record.yearMonth}</strong>の記録を削除します。実績データも消えます。</p>
+            <div className="flex gap-2">
+              <button onClick={() => onDelete(record.id)} className="flex-1 py-2 bg-red-600 text-white rounded-lg font-medium">削除する</button>
+              <button onClick={() => setShowDeleteConfirm(false)} className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium">キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// =========================================================================
+// 年サマリー
+// =========================================================================
+function YearlySummary({ history }) {
+  const years = useMemo(() => {
+    const ySet = new Set(history.map((r) => r.yearMonth.split('-')[0]));
+    return [...ySet].sort((a, b) => b.localeCompare(a));
+  }, [history]);
+
+  const [selectedYear, setSelectedYear] = useState(years[0] || String(new Date().getFullYear()));
+
+  const yearRecords = useMemo(
+    () => history.filter((r) => r.yearMonth.startsWith(selectedYear + '-')),
+    [history, selectedYear]
+  );
+
+  const summary = useMemo(() => {
+    let totalIncome = 0;
+    let totalNormal = 0;
+    let totalBonus = 0;
+    let totalActual = 0;
+    const byCategory = {}; // name -> { allocated, actual, color }
+
+    yearRecords.forEach((r) => {
+      totalIncome += r.amount;
+      if (r.type === 'bonus') totalBonus += r.amount;
+      else totalNormal += r.amount;
+
+      r.categories.forEach((cat, idx) => {
+        const alloc = r.allocations[idx] || 0;
+        const actual = (r.actuals?.[cat.id]?.total) || 0;
+        totalActual += actual;
+        const key = cat.name;
+        if (!byCategory[key]) byCategory[key] = { allocated: 0, actual: 0, color: cat.color };
+        byCategory[key].allocated += alloc;
+        byCategory[key].actual += actual;
+      });
+    });
+
+    return { totalIncome, totalNormal, totalBonus, totalActual, byCategory };
+  }, [yearRecords]);
+
+  if (history.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-stone-200">
+        <BarChart3 className="w-12 h-12 text-stone-300 mx-auto mb-3" />
+        <p className="text-stone-500">記録がまだありません</p>
+      </div>
+    );
+  }
+
+  const categoryEntries = Object.entries(summary.byCategory).sort((a, b) => b[1].allocated - a[1].allocated);
+  const maxAllocated = Math.max(...categoryEntries.map(([, v]) => v.allocated), 1);
+
+  return (
+    <>
+      {/* 年セレクタ */}
+      <div className="bg-white rounded-2xl p-3 mb-4 shadow-sm border border-stone-200 flex items-center gap-2 overflow-x-auto">
+        {years.map((y) => (
+          <button
+            key={y}
+            onClick={() => setSelectedYear(y)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+              selectedYear === y ? 'bg-stone-900 text-white' : 'text-stone-500 hover:bg-stone-100'
+            }`}
+          >
+            {y}年
+          </button>
+        ))}
+      </div>
+
+      {/* 総額 */}
+      <div className="bg-stone-900 text-stone-50 rounded-2xl p-5 mb-4">
+        <div className="text-stone-400 text-xs uppercase tracking-wider mb-1">{selectedYear}年 年収（手取り）</div>
+        <div className="text-3xl font-bold tabular-nums mb-3">{formatYen(summary.totalIncome)}</div>
+        <div className="flex gap-4 text-sm">
+          <div>
+            <div className="text-stone-400 text-xs">通常給与</div>
+            <div className="font-semibold tabular-nums">{formatYen(summary.totalNormal)}</div>
+          </div>
+          <div>
+            <div className="text-stone-400 text-xs">ボーナス</div>
+            <div className="font-semibold tabular-nums">{formatYen(summary.totalBonus)}</div>
+          </div>
+          <div>
+            <div className="text-stone-400 text-xs">記録月数</div>
+            <div className="font-semibold tabular-nums">{yearRecords.length}ヶ月分</div>
+          </div>
+        </div>
+      </div>
+
+      {/* 実績入力済みの場合のみ表示 */}
+      {summary.totalActual > 0 && (
+        <div className="bg-white rounded-2xl p-5 mb-4 shadow-sm border border-stone-200">
+          <div className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2">実績合計</div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-2xl font-bold text-stone-900 tabular-nums">{formatYen(summary.totalActual)}</span>
+            <span className={`text-sm font-semibold tabular-nums ${summary.totalIncome - summary.totalActual < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+              {summary.totalIncome - summary.totalActual < 0
+                ? `-${formatYen(summary.totalActual - summary.totalIncome)}`
+                : `+${formatYen(summary.totalIncome - summary.totalActual)}`}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* カテゴリ別 */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-stone-200">
+        <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-4">カテゴリ別</h3>
+        <div className="space-y-4">
+          {categoryEntries.map(([name, { allocated, actual, color }]) => {
+            const allocBarPct = (allocated / maxAllocated) * 100;
+            const actualBarPct = (actual / maxAllocated) * 100;
+            const isOver = actual > allocated && actual > 0;
+            const diff = allocated - actual;
+
+            return (
+              <div key={name}>
+                <div className="flex items-baseline justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
+                    <span className="font-semibold text-stone-900 text-sm">{name}</span>
+                  </div>
+                  <span className="text-sm font-bold text-stone-900 tabular-nums">{formatYen(allocated)}</span>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-stone-400 w-8">配分</span>
+                    <div className="flex-1 h-3 bg-stone-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${allocBarPct}%`, backgroundColor: color }} />
+                    </div>
+                  </div>
+                  {actual > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-stone-400 w-8">実績</span>
+                      <div className="flex-1 h-3 bg-stone-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full opacity-60"
+                          style={{ width: `${Math.min(actualBarPct, 100)}%`, backgroundColor: isOver ? '#ef4444' : color }}
+                        />
+                      </div>
+                      <span className={`text-xs font-medium tabular-nums w-20 text-right ${isOver ? 'text-red-600' : 'text-stone-500'}`}>
+                        {formatYen(actual)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {actual > 0 && (
+                  <div className={`text-xs mt-1 text-right tabular-nums ${diff < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    差額 {diff < 0 ? `-${formatYen(-diff)}` : `+${formatYen(diff)}`}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
