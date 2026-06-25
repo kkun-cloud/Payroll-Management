@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>給与配分</title>
+  <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;💰&lt;/text&gt;&lt;/svg&gt;" />
+  <script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { margin: 0; -webkit-tap-highlight-color: transparent; }
+    * { -webkit-font-smoothing: antialiased; }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type="number"] { -moz-appearance: textfield; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    // ReactとReactDOMが読み込めなかったら分かりやすく表示
+    if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+      document.getElementById('root').innerHTML =
+        '<div style="padding:20px;font-family:sans-serif;color:#dc2626;">' +
+        '<h2>Reactの読み込みに失敗しました</h2>' +
+        '<p>ネットワーク接続を確認してページを再読み込みしてください。</p>' +
+        '</div>';
+      throw new Error('React or ReactDOM failed to load');
+    }
+  </script>
+  <script>
+function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
+const {
+  useState,
+  useMemo,
+  useEffect,
+  useRef
+} = React;
+
+// ===== アイコン（lucide風インラインSVG）=====
+const Icon = ({
+  children,
+  className = "w-5 h-5",
+  ...props
+}) => /*#__PURE__*/React.createElement("svg", _extends({
+  xmlns: "http://www.w3.org/2000/svg",
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  className: className
+}, props), children);
+const Plus = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "M5 12h14M12 5v14"
+}));
+const Trash2 = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+}), /*#__PURE__*/React.createElement("line", {
+  x1: "10",
+  y1: "11",
+  x2: "10",
+  y2: "17"
+}), /*#__PURE__*/React.createElement("line", {
+  x1: "14",
+  y1: "11",
+  x2: "14",
+  y2: "17"
+}));
+const Edit2 = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"
+}));
+const Check = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "M20 6 9 17l-5-5"
+}));
+const X = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "M18 6 6 18M6 6l12 12"
+}));
+const AlertCircle = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("circle", {
+  cx: "12",
+  cy: "12",
+  r: "10"
+}), /*#__PURE__*/React.createElement("line", {
+  x1: "12",
+  y1: "8",
+  x2: "12",
+  y2: "12"
+}), /*#__PURE__*/React.createElement("line", {
+  x1: "12",
+  y1: "16",
+  x2: "12.01",
+  y2: "16"
+}));
+const Wallet = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "M21 12V7H5a2 2 0 0 1 0-4h14v4"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M3 5v14a2 2 0 0 0 2 2h16v-5"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M18 12a2 2 0 0 0 0 4h4v-4Z"
+}));
+const ChevronDown = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "m6 9 6 6 6-6"
+}));
+const ChevronRight = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "m9 18 6-6-6-6"
+}));
+const Save = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
+}), /*#__PURE__*/React.createElement("polyline", {
+  points: "17 21 17 13 7 13 7 21"
+}), /*#__PURE__*/React.createElement("polyline", {
+  points: "7 3 7 8 15 8"
+}));
+const Coins = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("circle", {
+  cx: "8",
+  cy: "8",
+  r: "6"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M18.09 10.37A6 6 0 1 1 10.34 18M7 6h1v4M16.71 13.88l.7.71-2.82 2.82"
+}));
+const History = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M3 3v5h5M12 7v5l4 2"
+}));
+const BarChart3 = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "M3 3v18h18M18 17V9M13 17V5M8 17v-3"
+}));
+const ArrowLeft = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "m12 19-7-7 7-7M19 12H5"
+}));
+const TrendingDown = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "M22 17 13.5 8.5 8.5 13.5 2 7"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M16 17h6v-6"
+}));
+const TrendingUp = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "M22 7 13.5 15.5 8.5 10.5 2 17"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M16 7h6v6"
+}));
+const Minus = p => /*#__PURE__*/React.createElement(Icon, p, /*#__PURE__*/React.createElement("path", {
+  d: "M5 12h14"
+}));
+const colorPalette = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#a855f7'];
+const defaultData = {
+  salary: 300000,
+  bonus: 500000,
+  mode: 'normal',
+  remainderAbsorberId: 2,
+  bonusRemainderAbsorberId: 101,
+  normalCategories: [{
+    id: 1,
+    name: '生活費',
+    percentage: 40,
+    color: '#10b981',
+    subItems: []
+  }, {
+    id: 2,
+    name: '自己投資',
+    percentage: 30,
+    color: '#3b82f6',
+    subItems: [{
+      id: 21,
+      name: '書籍',
+      percentage: 20
+    }, {
+      id: 22,
+      name: '講座',
+      percentage: 50
+    }, {
+      id: 23,
+      name: 'ジム',
+      percentage: 30
+    }]
+  }, {
+    id: 3,
+    name: '貯金',
+    percentage: 10,
+    color: '#f59e0b',
+    subItems: []
+  }, {
+    id: 4,
+    name: '自由＋交際',
+    percentage: 20,
+    color: '#ec4899',
+    subItems: []
+  }],
+  bonusCategories: [{
+    id: 101,
+    name: '自己投資',
+    percentage: 60,
+    color: '#3b82f6',
+    subItems: []
+  }, {
+    id: 102,
+    name: '彼女との交際費',
+    percentage: 40,
+    color: '#ec4899',
+    subItems: []
+  }],
+  history: []
+};
+const formatYen = amount => `¥${Math.floor(amount).toLocaleString('ja-JP')}`;
+
+// パーセント表示: 整数ならそのまま、小数があれば1桁まで
+const formatPercent = p => {
+  const n = Number(p) || 0;
+  if (Number.isInteger(n)) return String(n);
+  return (Math.round(n * 10) / 10).toString();
+};
+
+// 端数吸収後の配分額計算
+function computeAllocations(categories, baseAmount, absorberId) {
+  const total = categories.reduce((s, c) => s + Number(c.percentage), 0);
+  const flooredAmounts = categories.map(cat => Math.floor(baseAmount * cat.percentage / 100));
+  const flooredTotal = flooredAmounts.reduce((s, a) => s + a, 0);
+  const targetTotal = Math.floor(baseAmount * Math.min(total, 100) / 100);
+  const remainder = targetTotal - flooredTotal;
+  const idx = categories.findIndex(c => c.id === absorberId);
+  const result = flooredAmounts.slice();
+  if (idx >= 0 && remainder !== 0) result[idx] += remainder;else if (remainder !== 0 && categories.length > 0) result[0] += remainder;
+  return result;
+}
+// =========================================================================
+// メインコンポーネント
+// =========================================================================
+function SalaryAllocator() {
+  const [data, setData] = useState(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) return {
+        ...defaultData,
+        ...JSON.parse(stored)
+      };
+    } catch (e) {}
+    return defaultData;
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {}
+  }, [data]);
+  const [tab, setTab] = useState('allocate'); // 'allocate' | 'history' | 'yearly'
+  const [editingRecord, setEditingRecord] = useState(null); // 履歴編集中のレコード
+
+  return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen bg-stone-50",
+    style: {
+      fontFamily: '"Hiragino Sans", "Noto Sans JP", sans-serif'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "max-w-3xl mx-auto p-4 md:p-8 pb-24"
+  }, /*#__PURE__*/React.createElement("header", {
+    className: "mb-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-3 mb-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "p-2 bg-stone-900 rounded-lg"
+  }, /*#__PURE__*/React.createElement(Wallet, {
+    className: "w-6 h-6 text-stone-50"
+  })), /*#__PURE__*/React.createElement("h1", {
+    className: "text-2xl md:text-3xl font-bold text-stone-900 tracking-tight"
+  }, "\u7D66\u4E0E\u914D\u5206")), /*#__PURE__*/React.createElement("p", {
+    className: "text-stone-500 text-sm"
+  }, tab === 'allocate' && '給与を入力して、各項目への配分を管理', tab === 'history' && '月ごとの記録と実績', tab === 'yearly' && '年単位の集計')), editingRecord ? /*#__PURE__*/React.createElement(RecordEditor, {
+    record: editingRecord,
+    onClose: () => setEditingRecord(null),
+    onSave: updated => {
+      setData(d => ({
+        ...d,
+        history: d.history.map(r => r.id === updated.id ? updated : r)
+      }));
+      setEditingRecord(null);
+    },
+    onDelete: id => {
+      setData(d => ({
+        ...d,
+        history: d.history.filter(r => r.id !== id)
+      }));
+      setEditingRecord(null);
+    }
+  }) : /*#__PURE__*/React.createElement(React.Fragment, null, tab === 'allocate' && /*#__PURE__*/React.createElement(AllocateView, {
+    data: data,
+    setData: setData
+  }), tab === 'history' && /*#__PURE__*/React.createElement(HistoryView, {
+    history: data.history,
+    onEdit: record => setEditingRecord(record)
+  }), tab === 'yearly' && /*#__PURE__*/React.createElement(YearlySummary, {
+    history: data.history
+  }))), !editingRecord && /*#__PURE__*/React.createElement("nav", {
+    className: "fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 shadow-lg"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "max-w-3xl mx-auto flex"
+  }, /*#__PURE__*/React.createElement(TabButton, {
+    active: tab === 'allocate',
+    onClick: () => setTab('allocate'),
+    icon: Wallet,
+    label: "\u914D\u5206"
+  }), /*#__PURE__*/React.createElement(TabButton, {
+    active: tab === 'history',
+    onClick: () => setTab('history'),
+    icon: History,
+    label: "\u5C65\u6B74"
+  }), /*#__PURE__*/React.createElement(TabButton, {
+    active: tab === 'yearly',
+    onClick: () => setTab('yearly'),
+    icon: BarChart3,
+    label: "\u5E74\u96C6\u8A08"
+  }))));
+}
+function TabButton({
+  active,
+  onClick,
+  icon: Icon,
+  label
+}) {
+  return /*#__PURE__*/React.createElement("button", {
+    onClick: onClick,
+    className: `flex-1 py-3 flex flex-col items-center gap-1 transition-colors ${active ? 'text-stone-900' : 'text-stone-400 hover:text-stone-700'}`
+  }, /*#__PURE__*/React.createElement(Icon, {
+    className: `w-5 h-5 ${active ? 'stroke-2' : ''}`
+  }), /*#__PURE__*/React.createElement("span", {
+    className: `text-xs ${active ? 'font-semibold' : 'font-medium'}`
+  }, label));
+}
+
+// =========================================================================
+// 配分タブ
+// =========================================================================
+function AllocateView({
+  data,
+  setData
+}) {
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    percentage: 0,
+    color: '',
+    amount: ''
+  });
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newCategory, setNewCategory] = useState({
+    name: '',
+    percentage: ''
+  });
+  const [expandedIds, setExpandedIds] = useState([2]);
+  const [editingSubKey, setEditingSubKey] = useState(null);
+  const [subEditForm, setSubEditForm] = useState({
+    name: '',
+    percentage: 0,
+    amount: ''
+  });
+  const [showSubAddForm, setShowSubAddForm] = useState(null);
+  const [newSubItem, setNewSubItem] = useState({
+    name: '',
+    percentage: ''
+  });
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const isBonus = data.mode === 'bonus';
+  const categories = isBonus ? data.bonusCategories : data.normalCategories;
+  const baseAmount = isBonus ? data.bonus : data.salary;
+  const categoriesKey = isBonus ? 'bonusCategories' : 'normalCategories';
+  const absorberId = isBonus ? data.bonusRemainderAbsorberId : data.remainderAbsorberId;
+  const absorberKey = isBonus ? 'bonusRemainderAbsorberId' : 'remainderAbsorberId';
+  const totalPercentage = useMemo(() => categories.reduce((sum, cat) => sum + Number(cat.percentage), 0), [categories]);
+  const allocations = useMemo(() => computeAllocations(categories, baseAmount, absorberId), [categories, baseAmount, absorberId]);
+  const updateCategories = updater => {
+    setData(d => ({
+      ...d,
+      [categoriesKey]: typeof updater === 'function' ? updater(d[categoriesKey]) : updater
+    }));
+  };
+  const setSalaryValue = val => {
+    if (isBonus) setData(d => ({
+      ...d,
+      bonus: val
+    }));else setData(d => ({
+      ...d,
+      salary: val
+    }));
+  };
+  const handleSalaryChange = e => {
+    const raw = e.target.value;
+    if (raw === '') {
+      setSalaryValue(0);
+      return;
+    }
+    const num = Number(raw);
+    if (isNaN(num) || num < 0) return;
+    setSalaryValue(num);
+  };
+
+  // 編集自動保存
+  const editingIdRef = useRef(editingId);
+  const editFormRef = useRef(editForm);
+  const editingSubKeyRef = useRef(editingSubKey);
+  const subEditFormRef = useRef(subEditForm);
+  useEffect(() => {
+    editingIdRef.current = editingId;
+  }, [editingId]);
+  useEffect(() => {
+    editFormRef.current = editForm;
+  }, [editForm]);
+  useEffect(() => {
+    editingSubKeyRef.current = editingSubKey;
+  }, [editingSubKey]);
+  useEffect(() => {
+    subEditFormRef.current = subEditForm;
+  }, [subEditForm]);
+  const saveCurrentEdits = () => {
+    const curId = editingIdRef.current;
+    const curForm = editFormRef.current;
+    const curSubKey = editingSubKeyRef.current;
+    const curSubForm = subEditFormRef.current;
+    if (curId !== null && curForm.name.trim()) {
+      updateCategories(cats => cats.map(cat => cat.id === curId ? {
+        ...cat,
+        name: curForm.name.trim(),
+        percentage: Number(curForm.percentage) || 0,
+        color: curForm.color || cat.color
+      } : cat));
+    }
+    if (curSubKey !== null && curSubForm.name.trim()) {
+      const [parentId, subId] = curSubKey.split('-').map(Number);
+      updateCategories(cats => cats.map(cat => cat.id === parentId ? {
+        ...cat,
+        subItems: cat.subItems.map(s => s.id === subId ? {
+          ...s,
+          name: curSubForm.name.trim(),
+          percentage: Number(curSubForm.percentage) || 0
+        } : s)
+      } : cat));
+    }
+  };
+  const startEdit = category => {
+    if (editingId !== null && editingId !== category.id) saveCurrentEdits();
+    if (editingSubKey !== null) saveCurrentEdits();
+    setEditingSubKey(null);
+    setEditingId(category.id);
+    const initialAmount = baseAmount > 0 ? Math.round(baseAmount * category.percentage / 100) : 0;
+    setEditForm({
+      name: category.name,
+      percentage: category.percentage,
+      color: category.color,
+      amount: String(initialAmount)
+    });
+  };
+  const saveEdit = id => {
+    if (!editForm.name.trim()) return;
+    updateCategories(cats => cats.map(cat => cat.id === id ? {
+      ...cat,
+      name: editForm.name.trim(),
+      percentage: Number(editForm.percentage),
+      color: editForm.color
+    } : cat));
+    setEditingId(null);
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditForm({
+      name: '',
+      percentage: 0,
+      color: '',
+      amount: ''
+    });
+  };
+  const requestDeleteCategory = cat => setDeleteTarget({
+    type: 'category',
+    id: cat.id,
+    name: cat.name
+  });
+  const requestDeleteSub = (parentId, sub) => setDeleteTarget({
+    type: 'sub',
+    id: sub.id,
+    name: sub.name,
+    parentId
+  });
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.type === 'category') {
+      updateCategories(cats => cats.filter(cat => cat.id !== deleteTarget.id));
+      if (deleteTarget.id === absorberId) {
+        const remaining = categories.filter(c => c.id !== deleteTarget.id);
+        if (remaining.length > 0) setData(d => ({
+          ...d,
+          [absorberKey]: remaining[0].id
+        }));
+      }
+    } else {
+      updateCategories(cats => cats.map(cat => cat.id === deleteTarget.parentId ? {
+        ...cat,
+        subItems: cat.subItems.filter(s => s.id !== deleteTarget.id)
+      } : cat));
+    }
+    setDeleteTarget(null);
+  };
+  const addCategory = () => {
+    const pct = Number(newCategory.percentage);
+    if (!newCategory.name.trim() || pct <= 0) return;
+    const usedColors = categories.map(c => c.color);
+    const availableColor = colorPalette.find(c => !usedColors.includes(c)) || colorPalette[categories.length % colorPalette.length];
+    updateCategories(cats => [...cats, {
+      id: Date.now(),
+      name: newCategory.name.trim(),
+      percentage: pct,
+      color: availableColor,
+      subItems: []
+    }]);
+    setNewCategory({
+      name: '',
+      percentage: ''
+    });
+    setShowAddForm(false);
+  };
+  const toggleExpand = id => setExpandedIds(ids => ids.includes(id) ? ids.filter(i => i !== id) : [...ids, id]);
+  const startSubEdit = (categoryId, sub, parentAmount) => {
+    if (editingId !== null) saveCurrentEdits();
+    if (editingSubKey !== null && editingSubKey !== `${categoryId}-${sub.id}`) saveCurrentEdits();
+    setEditingId(null);
+    setEditingSubKey(`${categoryId}-${sub.id}`);
+    const initial = parentAmount > 0 ? Math.round(parentAmount * sub.percentage / 100) : 0;
+    setSubEditForm({
+      name: sub.name,
+      percentage: sub.percentage,
+      amount: String(initial)
+    });
+  };
+  const saveSubEdit = (categoryId, subId) => {
+    if (!subEditForm.name.trim()) return;
+    updateCategories(cats => cats.map(cat => cat.id === categoryId ? {
+      ...cat,
+      subItems: cat.subItems.map(s => s.id === subId ? {
+        ...s,
+        name: subEditForm.name.trim(),
+        percentage: Number(subEditForm.percentage)
+      } : s)
+    } : cat));
+    setEditingSubKey(null);
+  };
+  const addSubItem = categoryId => {
+    const pct = Number(newSubItem.percentage);
+    if (!newSubItem.name.trim() || pct < 0) return;
+    updateCategories(cats => cats.map(cat => cat.id === categoryId ? {
+      ...cat,
+      subItems: [...cat.subItems, {
+        id: Date.now(),
+        name: newSubItem.name.trim(),
+        percentage: pct
+      }]
+    } : cat));
+    setNewSubItem({
+      name: '',
+      percentage: ''
+    });
+    setShowSubAddForm(null);
+  };
+  const confirmMonth = () => {
+    saveCurrentEdits();
+    setEditingId(null);
+    setEditingSubKey(null);
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const allocs = computeAllocations(categories, baseAmount, absorberId);
+    const record = {
+      id: Date.now(),
+      yearMonth: ym,
+      type: data.mode,
+      amount: baseAmount,
+      categories: JSON.parse(JSON.stringify(categories)),
+      allocations: allocs,
+      actuals: {},
+      // { categoryId: { total: number, subItems: { subId: number } } }
+      createdAt: now.toISOString()
+    };
+    setData(d => ({
+      ...d,
+      history: [...d.history, record]
+    }));
+    setShowConfirmModal(false);
+  };
+  const isOver = totalPercentage > 100;
+  const isUnder = totalPercentage < 100;
+  const remaining = 100 - totalPercentage;
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-1 mb-4 shadow-sm border border-stone-200 flex"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      saveCurrentEdits();
+      setEditingId(null);
+      setEditingSubKey(null);
+      setData(d => ({
+        ...d,
+        mode: 'normal'
+      }));
+    },
+    className: `flex-1 py-2 rounded-xl font-medium text-sm transition-colors ${!isBonus ? 'bg-stone-900 text-white' : 'text-stone-500 hover:text-stone-900'}`
+  }, "\u901A\u5E38\u7D66\u4E0E"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      saveCurrentEdits();
+      setEditingId(null);
+      setEditingSubKey(null);
+      setData(d => ({
+        ...d,
+        mode: 'bonus'
+      }));
+    },
+    className: `flex-1 py-2 rounded-xl font-medium text-sm transition-colors ${isBonus ? 'bg-stone-900 text-white' : 'text-stone-500 hover:text-stone-900'}`
+  }, "\u30DC\u30FC\u30CA\u30B9")), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-6 mb-4 shadow-sm border border-stone-200"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2"
+  }, isBonus ? 'ボーナス額（手取り）' : '月の給与（手取り）'), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-2xl text-stone-400"
+  }, "\xA5"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    inputMode: "numeric",
+    pattern: "[0-9]*",
+    value: baseAmount === 0 ? '' : String(baseAmount),
+    onChange: handleSalaryChange,
+    className: "flex-1 text-4xl md:text-5xl font-bold text-stone-900 bg-transparent outline-none w-full",
+    placeholder: "0"
+  }))), (isOver || isUnder) && /*#__PURE__*/React.createElement("div", {
+    className: `flex items-start gap-2 p-3 rounded-xl mb-4 ${isOver ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`
+  }, /*#__PURE__*/React.createElement(AlertCircle, {
+    className: "w-5 h-5 flex-shrink-0 mt-0.5"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "text-sm"
+  }, isOver ? /*#__PURE__*/React.createElement(React.Fragment, null, "\u5408\u8A08\u304C ", /*#__PURE__*/React.createElement("strong", null, formatPercent(totalPercentage), "%"), " \u3067\u3059\u3002100%\u3092\u8D85\u3048\u3066\u3044\u307E\u3059\uFF08+", formatPercent(totalPercentage - 100), "%\uFF09") : /*#__PURE__*/React.createElement(React.Fragment, null, "\u5408\u8A08\u304C ", /*#__PURE__*/React.createElement("strong", null, formatPercent(totalPercentage), "%"), " \u3067\u3059\u3002\u6B8B\u308A ", /*#__PURE__*/React.createElement("strong", null, formatPercent(remaining), "%"), " \u672A\u914D\u5206"))), categories.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-3 mb-4 shadow-sm border border-stone-200 flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement(Coins, {
+    className: "w-4 h-4 text-stone-400 flex-shrink-0"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-xs text-stone-500 flex-shrink-0"
+  }, "\u7AEF\u6570\u306E\u5438\u53CE\u5148"), /*#__PURE__*/React.createElement("select", {
+    value: absorberId,
+    onChange: e => setData(d => ({
+      ...d,
+      [absorberKey]: Number(e.target.value)
+    })),
+    className: "flex-1 text-sm font-medium text-stone-900 bg-transparent outline-none cursor-pointer"
+  }, categories.map(cat => /*#__PURE__*/React.createElement("option", {
+    key: cat.id,
+    value: cat.id
+  }, cat.name)))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-4 mb-4 shadow-sm border border-stone-200"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex h-8 rounded-lg overflow-hidden bg-stone-100"
+  }, categories.map(cat => /*#__PURE__*/React.createElement("div", {
+    key: cat.id,
+    style: {
+      width: `${cat.percentage / Math.max(totalPercentage, 100) * 100}%`,
+      backgroundColor: cat.color
+    },
+    className: "transition-all duration-300",
+    title: `${cat.name}: ${cat.percentage}%`
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2 mb-4"
+  }, categories.map((cat, idx) => {
+    const amount = allocations[idx];
+    const isEditing = editingId === cat.id;
+    const hasSubSupport = !isBonus;
+    const isExpanded = expandedIds.includes(cat.id);
+    const subTotal = cat.subItems?.reduce((s, x) => s + Number(x.percentage), 0) || 0;
+    const subInvalid = cat.subItems?.length > 0 && Math.abs(subTotal - 100) > 0.05;
+    const isAbsorber = cat.id === absorberId;
+    return /*#__PURE__*/React.createElement("div", {
+      key: cat.id,
+      className: "bg-white rounded-2xl shadow-sm border border-stone-200 hover:border-stone-300 transition-colors overflow-hidden"
+    }, isEditing ? /*#__PURE__*/React.createElement("div", {
+      className: "p-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2 mb-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "w-3 h-12 rounded-full flex-shrink-0",
+      style: {
+        backgroundColor: editForm.color
+      }
+    }), /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      value: editForm.name,
+      onChange: e => setEditForm({
+        ...editForm,
+        name: e.target.value
+      }),
+      className: "flex-1 px-3 py-2 border border-stone-300 rounded-lg outline-none focus:border-stone-900",
+      placeholder: "\u9805\u76EE\u540D"
+    }), /*#__PURE__*/React.createElement("button", {
+      onClick: () => saveEdit(cat.id),
+      className: "p-2 bg-stone-900 text-white rounded-lg hover:bg-stone-700"
+    }, /*#__PURE__*/React.createElement(Check, {
+      className: "w-4 h-4"
+    })), /*#__PURE__*/React.createElement("button", {
+      onClick: cancelEdit,
+      className: "p-2 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200"
+    }, /*#__PURE__*/React.createElement(X, {
+      className: "w-4 h-4"
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-2 gap-2 mb-3 pl-5"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      className: "block text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-1"
+    }, "\u30D1\u30FC\u30BB\u30F3\u30C8"), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-1"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      inputMode: "decimal",
+      step: "0.1",
+      value: editForm.percentage,
+      onChange: e => {
+        const v = e.target.value;
+        const pct = Number(v);
+        // 金額を逆算（整数）
+        const newAmount = baseAmount > 0 && !isNaN(pct) ? Math.round(baseAmount * pct / 100) : 0;
+        setEditForm({
+          ...editForm,
+          percentage: v,
+          amount: String(newAmount)
+        });
+      },
+      className: "w-full px-3 py-2 border border-stone-300 rounded-lg outline-none focus:border-stone-900 tabular-nums",
+      min: "0",
+      max: "100"
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "text-stone-500"
+    }, "%"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      className: "block text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-1"
+    }, "\u91D1\u984D"), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-1"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-stone-500"
+    }, "\xA5"), /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      inputMode: "numeric",
+      pattern: "[0-9]*",
+      value: editForm.amount,
+      onChange: e => {
+        const raw = e.target.value.replace(/[^0-9]/g, '');
+        const amt = Number(raw) || 0;
+        // %を逆算（小数1桁）
+        const newPct = baseAmount > 0 ? Math.round(amt / baseAmount * 1000) / 10 : 0;
+        setEditForm({
+          ...editForm,
+          amount: raw,
+          percentage: String(newPct)
+        });
+      },
+      className: "w-full px-3 py-2 border border-stone-300 rounded-lg outline-none focus:border-stone-900 tabular-nums",
+      placeholder: "0"
+    })))), /*#__PURE__*/React.createElement("div", {
+      className: "flex flex-wrap gap-1.5 pl-5"
+    }, colorPalette.map(c => /*#__PURE__*/React.createElement("button", {
+      key: c,
+      onClick: () => setEditForm({
+        ...editForm,
+        color: c
+      }),
+      className: `w-7 h-7 rounded-full transition-transform ${editForm.color === c ? 'ring-2 ring-offset-2 ring-stone-900 scale-110' : 'hover:scale-110'}`,
+      style: {
+        backgroundColor: c
+      }
+    })))) : /*#__PURE__*/React.createElement("div", {
+      className: "p-4 flex items-center gap-3"
+    }, hasSubSupport ? /*#__PURE__*/React.createElement("button", {
+      onClick: () => toggleExpand(cat.id),
+      className: "flex-shrink-0 p-1 -ml-1 text-stone-400 hover:text-stone-900"
+    }, isExpanded ? /*#__PURE__*/React.createElement(ChevronDown, {
+      className: "w-4 h-4"
+    }) : /*#__PURE__*/React.createElement(ChevronRight, {
+      className: "w-4 h-4"
+    })) : /*#__PURE__*/React.createElement("div", {
+      className: "w-6"
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "w-3 h-12 rounded-full flex-shrink-0",
+      style: {
+        backgroundColor: cat.color
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-baseline justify-between gap-2 mb-1"
+    }, /*#__PURE__*/React.createElement("h3", {
+      className: "font-semibold text-stone-900 truncate flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "truncate"
+    }, cat.name), isAbsorber && /*#__PURE__*/React.createElement(Coins, {
+      className: "w-3 h-3 text-stone-400 flex-shrink-0"
+    }), hasSubSupport && cat.subItems?.length > 0 && /*#__PURE__*/React.createElement("span", {
+      className: `text-xs font-normal flex-shrink-0 ${subInvalid ? 'text-amber-600' : 'text-stone-400'}`
+    }, cat.subItems.length, "\u9805\u76EE", subInvalid && ` ・${formatPercent(subTotal)}%`)), /*#__PURE__*/React.createElement("span", {
+      className: "text-sm font-medium text-stone-500 flex-shrink-0"
+    }, formatPercent(cat.percentage), "%")), /*#__PURE__*/React.createElement("p", {
+      className: "text-xl font-bold text-stone-900 tabular-nums"
+    }, formatYen(amount))), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-1 flex-shrink-0"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => startEdit(cat),
+      className: "p-2 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded-lg"
+    }, /*#__PURE__*/React.createElement(Edit2, {
+      className: "w-4 h-4"
+    })), /*#__PURE__*/React.createElement("button", {
+      onClick: () => requestDeleteCategory(cat),
+      className: "p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+    }, /*#__PURE__*/React.createElement(Trash2, {
+      className: "w-4 h-4"
+    })))), hasSubSupport && isExpanded && !isEditing && /*#__PURE__*/React.createElement("div", {
+      className: "border-t border-stone-100 bg-stone-50/50 p-3 pl-12 space-y-2"
+    }, cat.subItems?.length > 0 && /*#__PURE__*/React.createElement("div", {
+      className: `text-xs mb-2 flex items-center gap-1 ${subInvalid ? 'text-amber-600' : 'text-stone-400'}`
+    }, subInvalid && /*#__PURE__*/React.createElement(AlertCircle, {
+      className: "w-3 h-3"
+    }), "\u30B5\u30D6\u9805\u76EE\u5185\u306E\u914D\u5206: \u5408\u8A08 ", formatPercent(subTotal), "%", subInvalid && `（100%にしてください）`), cat.subItems?.map(sub => {
+      const subKey = `${cat.id}-${sub.id}`;
+      const isSubEditing = editingSubKey === subKey;
+      const subAmount = amount * sub.percentage / 100;
+      return /*#__PURE__*/React.createElement("div", {
+        key: sub.id,
+        className: "bg-white rounded-lg p-3 border border-stone-200"
+      }, isSubEditing ? /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+        className: "flex items-center gap-2 mb-2"
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "text",
+        value: subEditForm.name,
+        onChange: e => setSubEditForm({
+          ...subEditForm,
+          name: e.target.value
+        }),
+        className: "flex-1 px-2 py-1 border border-stone-300 rounded text-sm outline-none focus:border-stone-900",
+        placeholder: "\u9805\u76EE\u540D"
+      }), /*#__PURE__*/React.createElement("button", {
+        onClick: () => saveSubEdit(cat.id, sub.id),
+        className: "p-1.5 bg-stone-900 text-white rounded"
+      }, /*#__PURE__*/React.createElement(Check, {
+        className: "w-3 h-3"
+      })), /*#__PURE__*/React.createElement("button", {
+        onClick: () => setEditingSubKey(null),
+        className: "p-1.5 bg-stone-100 text-stone-700 rounded"
+      }, /*#__PURE__*/React.createElement(X, {
+        className: "w-3 h-3"
+      }))), /*#__PURE__*/React.createElement("div", {
+        className: "grid grid-cols-2 gap-2"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "flex items-center gap-1"
+      }, /*#__PURE__*/React.createElement("input", {
+        type: "number",
+        inputMode: "decimal",
+        step: "0.1",
+        value: subEditForm.percentage,
+        onChange: e => {
+          const v = e.target.value;
+          const pct = Number(v);
+          const newAmount = amount > 0 && !isNaN(pct) ? Math.round(amount * pct / 100) : 0;
+          setSubEditForm({
+            ...subEditForm,
+            percentage: v,
+            amount: String(newAmount)
+          });
+        },
+        className: "w-full px-2 py-1 border border-stone-300 rounded text-sm outline-none focus:border-stone-900 tabular-nums",
+        min: "0",
+        max: "100"
+      }), /*#__PURE__*/React.createElement("span", {
+        className: "text-stone-500 text-sm"
+      }, "%")), /*#__PURE__*/React.createElement("div", {
+        className: "flex items-center gap-1"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "text-stone-500 text-sm"
+      }, "\xA5"), /*#__PURE__*/React.createElement("input", {
+        type: "text",
+        inputMode: "numeric",
+        pattern: "[0-9]*",
+        value: subEditForm.amount,
+        onChange: e => {
+          const raw = e.target.value.replace(/[^0-9]/g, '');
+          const amt = Number(raw) || 0;
+          const newPct = amount > 0 ? Math.round(amt / amount * 1000) / 10 : 0;
+          setSubEditForm({
+            ...subEditForm,
+            amount: raw,
+            percentage: String(newPct)
+          });
+        },
+        className: "w-full px-2 py-1 border border-stone-300 rounded text-sm outline-none focus:border-stone-900 tabular-nums",
+        placeholder: "0"
+      })))) : /*#__PURE__*/React.createElement("div", {
+        className: "flex items-center gap-2"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "flex-1 min-w-0"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "flex items-baseline justify-between gap-2"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "text-sm font-medium text-stone-700 truncate"
+      }, sub.name), /*#__PURE__*/React.createElement("span", {
+        className: "text-xs text-stone-400 flex-shrink-0"
+      }, formatPercent(sub.percentage), "%")), /*#__PURE__*/React.createElement("p", {
+        className: "text-sm font-semibold text-stone-900 tabular-nums"
+      }, formatYen(subAmount))), /*#__PURE__*/React.createElement("button", {
+        onClick: () => startSubEdit(cat.id, sub, amount),
+        className: "p-1.5 text-stone-400 hover:text-stone-900 hover:bg-stone-100 rounded"
+      }, /*#__PURE__*/React.createElement(Edit2, {
+        className: "w-3 h-3"
+      })), /*#__PURE__*/React.createElement("button", {
+        onClick: () => requestDeleteSub(cat.id, sub),
+        className: "p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded"
+      }, /*#__PURE__*/React.createElement(Trash2, {
+        className: "w-3 h-3"
+      }))));
+    }), showSubAddForm === cat.id ? /*#__PURE__*/React.createElement("div", {
+      className: "bg-white rounded-lg p-3 border-2 border-stone-900"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "grid grid-cols-2 gap-2 mb-2"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      value: newSubItem.name,
+      onChange: e => setNewSubItem({
+        ...newSubItem,
+        name: e.target.value
+      }),
+      className: "px-2 py-1 border border-stone-300 rounded text-sm outline-none focus:border-stone-900",
+      placeholder: "\u9805\u76EE\u540D",
+      autoFocus: true
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-1"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "number",
+      value: newSubItem.percentage,
+      onChange: e => setNewSubItem({
+        ...newSubItem,
+        percentage: e.target.value
+      }),
+      className: "w-full px-2 py-1 border border-stone-300 rounded text-sm outline-none focus:border-stone-900",
+      placeholder: "0",
+      min: "0",
+      max: "100"
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "text-stone-500 text-sm"
+    }, "%"))), /*#__PURE__*/React.createElement("div", {
+      className: "flex gap-2"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => addSubItem(cat.id),
+      className: "flex-1 py-1.5 bg-stone-900 text-white rounded text-sm font-medium"
+    }, "\u8FFD\u52A0"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        setShowSubAddForm(null);
+        setNewSubItem({
+          name: '',
+          percentage: ''
+        });
+      },
+      className: "px-3 py-1.5 bg-stone-100 text-stone-700 rounded text-sm font-medium"
+    }, "\u30AD\u30E3\u30F3\u30BB\u30EB"))) : /*#__PURE__*/React.createElement("button", {
+      onClick: () => setShowSubAddForm(cat.id),
+      className: "w-full py-2 border border-dashed border-stone-300 rounded-lg text-stone-500 hover:border-stone-900 hover:text-stone-900 transition-colors flex items-center justify-center gap-1 text-sm"
+    }, /*#__PURE__*/React.createElement(Plus, {
+      className: "w-3 h-3"
+    }), /*#__PURE__*/React.createElement("span", null, "\u30B5\u30D6\u9805\u76EE\u3092\u8FFD\u52A0"))));
+  })), showAddForm ? /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-4 shadow-sm border-2 border-stone-900 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-2 mb-3"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: newCategory.name,
+    onChange: e => setNewCategory({
+      ...newCategory,
+      name: e.target.value
+    }),
+    className: "px-3 py-2 border border-stone-300 rounded-lg outline-none focus:border-stone-900",
+    placeholder: "\u9805\u76EE\u540D\uFF08\u4F8B\uFF1A\u65C5\u884C\uFF09",
+    autoFocus: true
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-1"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    value: newCategory.percentage,
+    onChange: e => setNewCategory({
+      ...newCategory,
+      percentage: e.target.value
+    }),
+    className: "w-full px-3 py-2 border border-stone-300 rounded-lg outline-none focus:border-stone-900",
+    placeholder: "0",
+    min: "0",
+    max: "100"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "text-stone-500"
+  }, "%"))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: addCategory,
+    className: "flex-1 py-2 bg-stone-900 text-white rounded-lg font-medium hover:bg-stone-700"
+  }, "\u8FFD\u52A0"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setShowAddForm(false);
+      setNewCategory({
+        name: '',
+        percentage: ''
+      });
+    },
+    className: "px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium hover:bg-stone-200"
+  }, "\u30AD\u30E3\u30F3\u30BB\u30EB"))) : /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowAddForm(true),
+    className: "w-full py-3 border-2 border-dashed border-stone-300 rounded-2xl text-stone-500 hover:border-stone-900 hover:text-stone-900 transition-colors flex items-center justify-center gap-2 mb-4"
+  }, /*#__PURE__*/React.createElement(Plus, {
+    className: "w-4 h-4"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "font-medium"
+  }, "\u9805\u76EE\u3092\u8FFD\u52A0")), /*#__PURE__*/React.createElement("div", {
+    className: "bg-stone-900 text-stone-50 rounded-2xl p-5 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-baseline mb-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-stone-400 text-sm"
+  }, "\u914D\u5206\u5408\u8A08"), /*#__PURE__*/React.createElement("span", {
+    className: `font-bold ${isOver ? 'text-red-400' : 'text-stone-50'}`
+  }, formatPercent(totalPercentage), "%")), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-baseline pt-3 border-t border-stone-700"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-stone-400 text-sm"
+  }, "\u914D\u5206\u3055\u308C\u308B\u91D1\u984D"), /*#__PURE__*/React.createElement("span", {
+    className: "text-2xl font-bold tabular-nums"
+  }, formatYen(allocations.reduce((s, a) => s + a, 0))))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowConfirmModal(true),
+    disabled: baseAmount <= 0 || isOver,
+    className: "w-full py-3 bg-stone-900 text-white rounded-2xl font-medium hover:bg-stone-700 disabled:bg-stone-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+  }, /*#__PURE__*/React.createElement(Save, {
+    className: "w-4 h-4"
+  }), isBonus ? 'ボーナス配分を記録' : '今月の配分を確定して記録'), showConfirmModal && /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 bg-stone-900/50 flex items-center justify-center p-4 z-50"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-6 max-w-sm w-full"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-bold text-stone-900 mb-2"
+  }, "\u8A18\u9332\u3057\u307E\u3059\u304B\uFF1F"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-stone-500 mb-4"
+  }, isBonus ? 'ボーナス' : '今月分', "\u306E\u914D\u5206\u3092\u5C65\u6B74\u306B\u4FDD\u5B58\u3057\u307E\u3059\u3002", /*#__PURE__*/React.createElement("br", null), "\u91D1\u984D: ", /*#__PURE__*/React.createElement("strong", {
+    className: "text-stone-900"
+  }, formatYen(baseAmount))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: confirmMonth,
+    className: "flex-1 py-2 bg-stone-900 text-white rounded-lg font-medium"
+  }, "\u8A18\u9332\u3059\u308B"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowConfirmModal(false),
+    className: "px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium"
+  }, "\u30AD\u30E3\u30F3\u30BB\u30EB")))), deleteTarget && /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 bg-stone-900/50 flex items-center justify-center p-4 z-50"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-6 max-w-sm w-full"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-bold text-stone-900 mb-2"
+  }, "\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-stone-500 mb-4"
+  }, /*#__PURE__*/React.createElement("strong", {
+    className: "text-stone-900"
+  }, "\u300C", deleteTarget.name, "\u300D"), "\u3092\u524A\u9664\u3057\u307E\u3059\u3002", deleteTarget.type === 'category' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("br", null), /*#__PURE__*/React.createElement("span", {
+    className: "text-xs"
+  }, "\u30B5\u30D6\u9805\u76EE\u3082\u3059\u3079\u3066\u524A\u9664\u3055\u308C\u307E\u3059\u3002"))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: confirmDelete,
+    className: "flex-1 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700"
+  }, "\u524A\u9664\u3059\u308B"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setDeleteTarget(null),
+    className: "px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium"
+  }, "\u30AD\u30E3\u30F3\u30BB\u30EB")))));
+}
+
+// =========================================================================
+// 履歴タブ
+// =========================================================================
+function HistoryView({
+  history,
+  onEdit
+}) {
+  if (history.length === 0) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "bg-white rounded-2xl p-12 text-center shadow-sm border border-stone-200"
+    }, /*#__PURE__*/React.createElement(History, {
+      className: "w-12 h-12 text-stone-300 mx-auto mb-3"
+    }), /*#__PURE__*/React.createElement("p", {
+      className: "text-stone-500 mb-1"
+    }, "\u307E\u3060\u8A18\u9332\u304C\u3042\u308A\u307E\u305B\u3093"), /*#__PURE__*/React.createElement("p", {
+      className: "text-xs text-stone-400"
+    }, "\u914D\u5206\u30BF\u30D6\u3067\u300C\u8A18\u9332\u300D\u3092\u62BC\u3059\u3068\u5C65\u6B74\u304C\u6B8B\u308A\u307E\u3059"));
+  }
+
+  // 月の降順（新しい順）
+  const sorted = [...history].sort((a, b) => b.yearMonth.localeCompare(a.yearMonth) || b.createdAt.localeCompare(a.createdAt));
+  return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, sorted.map(record => {
+    const actualTotal = Object.values(record.actuals || {}).reduce((s, v) => s + (Number(v.total) || 0), 0);
+    const hasActuals = actualTotal > 0;
+    const diff = record.amount - actualTotal;
+    return /*#__PURE__*/React.createElement("button", {
+      key: record.id,
+      onClick: () => onEdit(record),
+      className: "w-full bg-white rounded-2xl p-4 shadow-sm border border-stone-200 hover:border-stone-400 transition-colors text-left"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-baseline justify-between mb-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "font-bold text-stone-900"
+    }, record.yearMonth), /*#__PURE__*/React.createElement("span", {
+      className: `text-xs px-2 py-0.5 rounded-full ${record.type === 'bonus' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-600'}`
+    }, record.type === 'bonus' ? 'ボーナス' : '通常')), /*#__PURE__*/React.createElement("span", {
+      className: "text-lg font-bold text-stone-900 tabular-nums"
+    }, formatYen(record.amount))), /*#__PURE__*/React.createElement("div", {
+      className: "flex h-2 rounded-full overflow-hidden bg-stone-100 mb-2"
+    }, record.categories.map(cat => {
+      const totalPct = record.categories.reduce((s, c) => s + Number(c.percentage), 0);
+      return /*#__PURE__*/React.createElement("div", {
+        key: cat.id,
+        style: {
+          width: `${cat.percentage / Math.max(totalPct, 100) * 100}%`,
+          backgroundColor: cat.color
+        }
+      });
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center justify-between text-xs"
+    }, hasActuals ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+      className: "text-stone-500"
+    }, "\u5B9F\u7E3E: ", /*#__PURE__*/React.createElement("span", {
+      className: "font-semibold tabular-nums"
+    }, formatYen(actualTotal))), /*#__PURE__*/React.createElement("span", {
+      className: `font-semibold tabular-nums ${diff < 0 ? 'text-red-600' : 'text-emerald-600'}`
+    }, diff < 0 ? `-${formatYen(-diff)}` : `+${formatYen(diff)}`)) : /*#__PURE__*/React.createElement("span", {
+      className: "text-stone-400"
+    }, "\u5B9F\u7E3E\u672A\u5165\u529B \u30FB\u30BF\u30C3\u30D7\u3067\u5165\u529B")));
+  }));
+}
+
+// =========================================================================
+// 履歴編集（実績入力）
+// =========================================================================
+function RecordEditor({
+  record,
+  onClose,
+  onSave,
+  onDelete
+}) {
+  const [actuals, setActuals] = useState(() => JSON.parse(JSON.stringify(record.actuals || {})));
+  const [amount, setAmount] = useState(record.amount);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const getActual = catId => actuals[catId] || {
+    total: 0,
+    subItems: {}
+  };
+  const setCategoryActual = (catId, total) => {
+    setActuals(a => ({
+      ...a,
+      [catId]: {
+        ...getActual(catId),
+        total: Number(total) || 0
+      }
+    }));
+  };
+  const setSubActual = (catId, subId, val) => {
+    setActuals(a => {
+      const cur = a[catId] || {
+        total: 0,
+        subItems: {}
+      };
+      const newSubItems = {
+        ...cur.subItems,
+        [subId]: Number(val) || 0
+      };
+      const newTotal = Object.values(newSubItems).reduce((s, v) => s + (Number(v) || 0), 0);
+      return {
+        ...a,
+        [catId]: {
+          total: newTotal,
+          subItems: newSubItems
+        }
+      };
+    });
+  };
+  const handleAmountChange = e => {
+    const raw = e.target.value;
+    if (raw === '') {
+      setAmount(0);
+      return;
+    }
+    const num = Number(raw);
+    if (isNaN(num) || num < 0) return;
+    setAmount(num);
+  };
+  const recomputedAllocations = useMemo(() => {
+    // 給与額が変わったら配分も再計算
+    if (amount !== record.amount) {
+      return computeAllocations(record.categories, amount, record.categories[0]?.id);
+    }
+    return record.allocations;
+  }, [amount, record]);
+  const totalActual = Object.values(actuals).reduce((s, v) => s + (Number(v.total) || 0), 0);
+  const diff = amount - totalActual;
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 mb-4"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "p-2 -ml-2 text-stone-500 hover:text-stone-900"
+  }, /*#__PURE__*/React.createElement(ArrowLeft, {
+    className: "w-5 h-5"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-xl font-bold text-stone-900"
+  }, record.yearMonth), /*#__PURE__*/React.createElement("span", {
+    className: `text-xs px-2 py-0.5 rounded-full ${record.type === 'bonus' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-600'}`
+  }, record.type === 'bonus' ? 'ボーナス' : '通常')), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-stone-500"
+  }, "\u5B9F\u7E3E\u3092\u5165\u529B\uFF08\u914D\u5206\u3082\u7DE8\u96C6\u53EF\uFF09"))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-5 mb-4 shadow-sm border border-stone-200"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2"
+  }, "\u7D66\u4E0E\u984D\uFF08\u624B\u53D6\u308A\uFF09"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline gap-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-xl text-stone-400"
+  }, "\xA5"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    inputMode: "numeric",
+    pattern: "[0-9]*",
+    value: amount === 0 ? '' : String(amount),
+    onChange: handleAmountChange,
+    className: "flex-1 text-3xl font-bold text-stone-900 bg-transparent outline-none w-full"
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2 mb-4"
+  }, record.categories.map((cat, idx) => {
+    const allocated = recomputedAllocations[idx];
+    const actual = getActual(cat.id);
+    const catDiff = allocated - actual.total;
+    const isOver = catDiff < 0 && actual.total > 0;
+    const hasSubs = cat.subItems && cat.subItems.length > 0;
+    return /*#__PURE__*/React.createElement("div", {
+      key: cat.id,
+      className: "bg-white rounded-2xl p-4 shadow-sm border border-stone-200"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-3 mb-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "w-3 h-12 rounded-full flex-shrink-0",
+      style: {
+        backgroundColor: cat.color
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 min-w-0"
+    }, /*#__PURE__*/React.createElement("h3", {
+      className: "font-semibold text-stone-900 truncate"
+    }, cat.name), /*#__PURE__*/React.createElement("p", {
+      className: "text-xs text-stone-500"
+    }, "\u914D\u5206: ", /*#__PURE__*/React.createElement("span", {
+      className: "font-medium tabular-nums"
+    }, formatYen(allocated)))), actual.total > 0 && /*#__PURE__*/React.createElement("div", {
+      className: `flex items-center gap-1 text-sm font-semibold ${isOver ? 'text-red-600' : 'text-emerald-600'}`
+    }, isOver ? /*#__PURE__*/React.createElement(TrendingDown, {
+      className: "w-3 h-3"
+    }) : catDiff > 0 ? /*#__PURE__*/React.createElement(TrendingUp, {
+      className: "w-3 h-3"
+    }) : /*#__PURE__*/React.createElement(Minus, {
+      className: "w-3 h-3"
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "tabular-nums"
+    }, catDiff < 0 ? `-${formatYen(-catDiff)}` : `+${formatYen(catDiff)}`))), hasSubs ? /*#__PURE__*/React.createElement("div", {
+      className: "space-y-2 pl-5"
+    }, cat.subItems.map(sub => {
+      const subAllocated = allocated * sub.percentage / 100;
+      const subActual = actual.subItems?.[sub.id] || 0;
+      return /*#__PURE__*/React.createElement("div", {
+        key: sub.id,
+        className: "bg-stone-50 rounded-lg p-3"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "flex items-center justify-between mb-1"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "text-sm font-medium text-stone-700"
+      }, sub.name), /*#__PURE__*/React.createElement("span", {
+        className: "text-xs text-stone-400"
+      }, "\u914D\u5206 ", formatYen(subAllocated))), /*#__PURE__*/React.createElement("div", {
+        className: "flex items-center gap-2"
+      }, /*#__PURE__*/React.createElement("span", {
+        className: "text-sm text-stone-400"
+      }, "\u5B9F\u7E3E"), /*#__PURE__*/React.createElement("span", {
+        className: "text-sm text-stone-400"
+      }, "\xA5"), /*#__PURE__*/React.createElement("input", {
+        type: "text",
+        inputMode: "numeric",
+        pattern: "[0-9]*",
+        value: subActual === 0 ? '' : String(subActual),
+        onChange: e => {
+          const raw = e.target.value;
+          if (raw === '') {
+            setSubActual(cat.id, sub.id, 0);
+            return;
+          }
+          const num = Number(raw);
+          if (isNaN(num) || num < 0) return;
+          setSubActual(cat.id, sub.id, num);
+        },
+        className: "flex-1 text-base font-semibold text-stone-900 bg-white border border-stone-300 rounded px-2 py-1 outline-none focus:border-stone-900 tabular-nums",
+        placeholder: "0"
+      })));
+    }), /*#__PURE__*/React.createElement("p", {
+      className: "text-xs text-stone-400 pl-1"
+    }, "\u5408\u8A08: ", /*#__PURE__*/React.createElement("span", {
+      className: "font-semibold tabular-nums"
+    }, formatYen(actual.total)))) : /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2 pl-5"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-sm text-stone-400"
+    }, "\u5B9F\u7E3E"), /*#__PURE__*/React.createElement("span", {
+      className: "text-sm text-stone-400"
+    }, "\xA5"), /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      inputMode: "numeric",
+      pattern: "[0-9]*",
+      value: actual.total === 0 ? '' : String(actual.total),
+      onChange: e => {
+        const raw = e.target.value;
+        if (raw === '') {
+          setCategoryActual(cat.id, 0);
+          return;
+        }
+        const num = Number(raw);
+        if (isNaN(num) || num < 0) return;
+        setCategoryActual(cat.id, num);
+      },
+      className: "flex-1 text-base font-semibold text-stone-900 bg-stone-50 border border-stone-300 rounded px-2 py-1.5 outline-none focus:border-stone-900 tabular-nums",
+      placeholder: "0"
+    })));
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "bg-stone-900 text-stone-50 rounded-2xl p-5 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-baseline mb-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-stone-400 text-sm"
+  }, "\u7D66\u4E0E"), /*#__PURE__*/React.createElement("span", {
+    className: "font-bold tabular-nums"
+  }, formatYen(amount))), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-baseline mb-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-stone-400 text-sm"
+  }, "\u5B9F\u7E3E\u5408\u8A08"), /*#__PURE__*/React.createElement("span", {
+    className: "font-bold tabular-nums"
+  }, formatYen(totalActual))), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between items-baseline pt-3 border-t border-stone-700"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-stone-400 text-sm"
+  }, "\u5DEE\u984D"), /*#__PURE__*/React.createElement("span", {
+    className: `text-xl font-bold tabular-nums ${diff < 0 ? 'text-red-400' : 'text-emerald-400'}`
+  }, diff < 0 ? `-${formatYen(-diff)}` : `+${formatYen(diff)}`))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2 mb-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => onSave({
+      ...record,
+      amount,
+      actuals
+    }),
+    className: "flex-1 py-3 bg-stone-900 text-white rounded-2xl font-medium hover:bg-stone-700"
+  }, "\u4FDD\u5B58"), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "px-6 py-3 bg-stone-100 text-stone-700 rounded-2xl font-medium hover:bg-stone-200"
+  }, "\u30AD\u30E3\u30F3\u30BB\u30EB")), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowDeleteConfirm(true),
+    className: "w-full py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg flex items-center justify-center gap-1"
+  }, /*#__PURE__*/React.createElement(Trash2, {
+    className: "w-3 h-3"
+  }), " \u3053\u306E\u8A18\u9332\u3092\u524A\u9664"), showDeleteConfirm && /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 bg-stone-900/50 flex items-center justify-center p-4 z-50"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-6 max-w-sm w-full"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-bold text-stone-900 mb-2"
+  }, "\u8A18\u9332\u3092\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-stone-500 mb-4"
+  }, /*#__PURE__*/React.createElement("strong", {
+    className: "text-stone-900"
+  }, record.yearMonth), "\u306E\u8A18\u9332\u3092\u524A\u9664\u3057\u307E\u3059\u3002\u5B9F\u7E3E\u30C7\u30FC\u30BF\u3082\u6D88\u3048\u307E\u3059\u3002"), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => onDelete(record.id),
+    className: "flex-1 py-2 bg-red-600 text-white rounded-lg font-medium"
+  }, "\u524A\u9664\u3059\u308B"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowDeleteConfirm(false),
+    className: "px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium"
+  }, "\u30AD\u30E3\u30F3\u30BB\u30EB")))));
+}
+
+// =========================================================================
+// 年サマリー
+// =========================================================================
+function YearlySummary({
+  history
+}) {
+  const years = useMemo(() => {
+    const ySet = new Set(history.map(r => r.yearMonth.split('-')[0]));
+    return [...ySet].sort((a, b) => b.localeCompare(a));
+  }, [history]);
+  const [selectedYear, setSelectedYear] = useState(years[0] || String(new Date().getFullYear()));
+  const yearRecords = useMemo(() => history.filter(r => r.yearMonth.startsWith(selectedYear + '-')), [history, selectedYear]);
+  const summary = useMemo(() => {
+    let totalIncome = 0;
+    let totalNormal = 0;
+    let totalBonus = 0;
+    let totalActual = 0;
+    const byCategory = {}; // name -> { allocated, actual, color }
+
+    yearRecords.forEach(r => {
+      totalIncome += r.amount;
+      if (r.type === 'bonus') totalBonus += r.amount;else totalNormal += r.amount;
+      r.categories.forEach((cat, idx) => {
+        const alloc = r.allocations[idx] || 0;
+        const actual = r.actuals?.[cat.id]?.total || 0;
+        totalActual += actual;
+        const key = cat.name;
+        if (!byCategory[key]) byCategory[key] = {
+          allocated: 0,
+          actual: 0,
+          color: cat.color
+        };
+        byCategory[key].allocated += alloc;
+        byCategory[key].actual += actual;
+      });
+    });
+    return {
+      totalIncome,
+      totalNormal,
+      totalBonus,
+      totalActual,
+      byCategory
+    };
+  }, [yearRecords]);
+  if (history.length === 0) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "bg-white rounded-2xl p-12 text-center shadow-sm border border-stone-200"
+    }, /*#__PURE__*/React.createElement(BarChart3, {
+      className: "w-12 h-12 text-stone-300 mx-auto mb-3"
+    }), /*#__PURE__*/React.createElement("p", {
+      className: "text-stone-500"
+    }, "\u8A18\u9332\u304C\u307E\u3060\u3042\u308A\u307E\u305B\u3093"));
+  }
+  const categoryEntries = Object.entries(summary.byCategory).sort((a, b) => b[1].allocated - a[1].allocated);
+  const maxAllocated = Math.max(...categoryEntries.map(([, v]) => v.allocated), 1);
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-3 mb-4 shadow-sm border border-stone-200 flex items-center gap-2 overflow-x-auto"
+  }, years.map(y => /*#__PURE__*/React.createElement("button", {
+    key: y,
+    onClick: () => setSelectedYear(y),
+    className: `px-4 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${selectedYear === y ? 'bg-stone-900 text-white' : 'text-stone-500 hover:bg-stone-100'}`
+  }, y, "\u5E74"))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-stone-900 text-stone-50 rounded-2xl p-5 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-stone-400 text-xs uppercase tracking-wider mb-1"
+  }, selectedYear, "\u5E74 \u5E74\u53CE\uFF08\u624B\u53D6\u308A\uFF09"), /*#__PURE__*/React.createElement("div", {
+    className: "text-3xl font-bold tabular-nums mb-3"
+  }, formatYen(summary.totalIncome)), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-4 text-sm"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-stone-400 text-xs"
+  }, "\u901A\u5E38\u7D66\u4E0E"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold tabular-nums"
+  }, formatYen(summary.totalNormal))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-stone-400 text-xs"
+  }, "\u30DC\u30FC\u30CA\u30B9"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold tabular-nums"
+  }, formatYen(summary.totalBonus))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "text-stone-400 text-xs"
+  }, "\u8A18\u9332\u6708\u6570"), /*#__PURE__*/React.createElement("div", {
+    className: "font-semibold tabular-nums"
+  }, yearRecords.length, "\u30F6\u6708\u5206")))), summary.totalActual > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-5 mb-4 shadow-sm border border-stone-200"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2"
+  }, "\u5B9F\u7E3E\u5408\u8A08"), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-baseline justify-between"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-2xl font-bold text-stone-900 tabular-nums"
+  }, formatYen(summary.totalActual)), /*#__PURE__*/React.createElement("span", {
+    className: `text-sm font-semibold tabular-nums ${summary.totalIncome - summary.totalActual < 0 ? 'text-red-600' : 'text-emerald-600'}`
+  }, summary.totalIncome - summary.totalActual < 0 ? `-${formatYen(summary.totalActual - summary.totalIncome)}` : `+${formatYen(summary.totalIncome - summary.totalActual)}`))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-2xl p-5 shadow-sm border border-stone-200"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "text-xs font-semibold text-stone-500 uppercase tracking-wider mb-4"
+  }, "\u30AB\u30C6\u30B4\u30EA\u5225"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, categoryEntries.map(([name, {
+    allocated,
+    actual,
+    color
+  }]) => {
+    const allocBarPct = allocated / maxAllocated * 100;
+    const actualBarPct = actual / maxAllocated * 100;
+    const isOver = actual > allocated && actual > 0;
+    const diff = allocated - actual;
+    return /*#__PURE__*/React.createElement("div", {
+      key: name
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-baseline justify-between mb-1.5"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "w-2.5 h-2.5 rounded-full",
+      style: {
+        backgroundColor: color
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "font-semibold text-stone-900 text-sm"
+    }, name)), /*#__PURE__*/React.createElement("span", {
+      className: "text-sm font-bold text-stone-900 tabular-nums"
+    }, formatYen(allocated))), /*#__PURE__*/React.createElement("div", {
+      className: "space-y-1"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] text-stone-400 w-8"
+    }, "\u914D\u5206"), /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 h-3 bg-stone-100 rounded-full overflow-hidden"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "h-full rounded-full",
+      style: {
+        width: `${allocBarPct}%`,
+        backgroundColor: color
+      }
+    }))), actual > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-[10px] text-stone-400 w-8"
+    }, "\u5B9F\u7E3E"), /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 h-3 bg-stone-100 rounded-full overflow-hidden"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "h-full rounded-full opacity-60",
+      style: {
+        width: `${Math.min(actualBarPct, 100)}%`,
+        backgroundColor: isOver ? '#ef4444' : color
+      }
+    })), /*#__PURE__*/React.createElement("span", {
+      className: `text-xs font-medium tabular-nums w-20 text-right ${isOver ? 'text-red-600' : 'text-stone-500'}`
+    }, formatYen(actual)))), actual > 0 && /*#__PURE__*/React.createElement("div", {
+      className: `text-xs mt-1 text-right tabular-nums ${diff < 0 ? 'text-red-600' : 'text-emerald-600'}`
+    }, "\u5DEE\u984D ", diff < 0 ? `-${formatYen(-diff)}` : `+${formatYen(diff)}`));
+  }))));
+}
+
+// ===== マウント =====
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(/*#__PURE__*/React.createElement(SalaryAllocator, null));
+</script>
+</body>
+</html>
